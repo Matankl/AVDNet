@@ -8,6 +8,7 @@ import matplotlib
 from sklearn.metrics import accuracy_score, recall_score, f1_score
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import openpyxl
 from constants import *
 
 # Function to load data paths and labels from a CSV file
@@ -18,19 +19,48 @@ def load_csv_data(csv_path):
     return x_paths, labels
 
 # Function to create tensors for training/validation batches from CSV data
-def create_tensors_from_csv(x_paths, labels, start_idx, block_num):
+import numpy as np
+import torch
+
+def create_tensors_from_csv(x_paths, labels, start_idx, block_num, target_shape=None):
+    """
+    Creates tensors from wav2vec matrices and labels.
+
+    Parameters:
+    - x_paths (list): List of paths to .npy files containing wav2vec matrices.
+    - labels (list): Corresponding labels for the wav2vec matrices.
+    - start_idx (int): Starting index in the dataset.
+    - block_num (int): Number of samples to process in one block.
+    - target_shape (tuple): Desired shape for the wav2vec matrices (e.g., (T, D)).
+
+    Returns:
+    - x (torch.Tensor): Tensor of wav2vec matrices (with added channel dimension).
+    - y (torch.Tensor): Tensor of labels.
+    """
     x, y = [], []
+
     for i in range(start_idx, min(start_idx + block_num, len(x_paths))):
-        wav2vec_matrix = np.load(x_paths[i], allow_pickle=True)  # Load wav2vec matrix for a sample
-        print(wav2vec_matrix.shape)
-        x.append(wav2vec_matrix)
+        # Load wav2vec matrix for a sample
+        wav2vec_matrix = np.load(x_paths[i], allow_pickle=True)
+
+        # Convert the matrix to a tensor and add channel dimension
+        wav2vec_tensor = torch.tensor(wav2vec_matrix, dtype=torch.float)  # Convert to tensor
+        x.append(wav2vec_tensor)  # Directly append tensor (not wrapped in a list)
         y.append(labels[i])
-    x = np.expand_dims(np.array(x), axis=1)  # Add channel dimension for convolutional input
-    return torch.from_numpy(x).float(), torch.from_numpy(np.array(y))
+
+    # Stack tensors into a single batch tensor
+    x = torch.stack(x)  # Shape: (batch_size, T, D) or (batch_size, channels, T, D)
+    y = torch.tensor(y, dtype=torch.float)  # Convert labels to tensor
+
+    print(x.shape)
+    print(y.shape)
+    return x, y
+
 
 # Function to calculate evaluation metrics
 def calculate_metrics(y_true, y_pred):
-    y_pred_labels = (y_pred > 0.5).int()  # Convert probabilities to binary predictions
+    print(y_true, y_pred)
+    y_pred_labels = (y_pred > 0.5).astype(int)  # Convert probabilities to binary predictions
     acc = accuracy_score(y_true, y_pred_labels)  # Calculate accuracy
     recall = recall_score(y_true, y_pred_labels)  # Calculate recall
     f1 = f1_score(y_true, y_pred_labels)  # Calculate F1-score
@@ -97,7 +127,7 @@ for Epoch in range(epoch):
         all_y_true, all_y_pred = [], []  # Lists to store true and predicted labels
 
         for i in range(0, len(x_paths), batch_size):
-            x_batch, y_batch = create_tensors_from_csv(x_paths, labels, i, batch_size)  # Create batch tensors
+            x_batch, y_batch = create_tensors_from_csv(WAV2VEC_FOLDER+"/"+x_paths, labels, i, batch_size)  # Create batch tensors
             x_batch, y_batch = x_batch.to(device), y_batch.to(device)  # Move tensors to the device
 
             y_pred = model(x_batch)  # Forward pass

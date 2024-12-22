@@ -41,42 +41,51 @@ class Convolutional_Speaker_Identification(nn.Module):
         self.drop_1 = nn.Dropout(p=DROP_OUT)
 
         self.global_avg_pooling_2d = nn.AdaptiveAvgPool2d((1, 1))
-        self.dense_1 = nn.Linear(4096, 1024)
+        self.dense_1 = nn.Linear(256, 128)
         self.drop_2 = nn.Dropout(p=DROP_OUT)
 
-        self.dense_2 = nn.Linear(1024, c.NUM_OF_CLASSES)
+        self.dense_2 = nn.Linear(128, 1)
 
     def forward(self, X):
 
         x = nn.ReLU()(self.conv_2d_1(X))
         x = self.bn_1(x)
         x = self.max_pool_2d_1(x)
+        print(f"After max_pool_2d_1: {x.shape}")  # Debug shape
 
         x = nn.ReLU()(self.conv_2d_2(x))
         x = self.bn_2(x)
         x = self.max_pool_2d_2(x)
+        print(f"After max_pool_2d_2: {x.shape}")  # Debug shape
 
         x = nn.ReLU()(self.conv_2d_3(x))
         x = self.bn_3(x)
+        print(f"After conv_2d_3: {x.shape}")  # Debug shape
 
         x = nn.ReLU()(self.conv_2d_4(x))
         x = self.bn_4(x)
+        print(f"After conv_2d_4: {x.shape}")  # Debug shape
 
         x = nn.ReLU()(self.conv_2d_5(x))
         x = self.bn_5(x)
-        x = self.max_pool_2d_3(x)
+        # x = self.max_pool_2d_3(x)
+        print(f"After max_pool_2d_3: {x.shape}")  # Debug shape
 
-        x = nn.ReLU()(self.conv_2d_6(x))
+        # x = nn.ReLU()(self.conv_2d_6(x))
         x = self.drop_1(x)
         x = self.global_avg_pooling_2d(x)
+        print(f"After conv_2d_6: {x.shape}")  # Debug shape
 
-        x = x.view(-1, x.shape[1])  # output channel for flatten before entering the dense layer
+        x = torch.flatten(x, 1)  # Correctly flattens to (batch_size, -1)
+        print(f"After reshape: {x.shape}")
         x = nn.ReLU()(self.dense_1(x))
         x = self.drop_2(x)
+        print(f"After drop_2: {x.shape}")
 
         x = self.dense_2(x)
-        y = nn.LogSoftmax(dim=1)(x)   # consider using Log-Softmax
+        y = nn.Sigmoid()(x)   # consider using Log-Softmax
 
+        print(f"Output shape: {y.shape}")
         return y
 
     def get_epochs(self):
