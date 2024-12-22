@@ -9,5 +9,7 @@ MAX_SEC = 10
 
 # Model
 WEIGHTS_DIRECTORY = "data/model"
-COST_METRIC = "cosine"  # euclidean or cosine
-INPUT_SHAPE=(NUM_FFT, None, 1)
+INPUT_CSV = "data/input.csv"
+WAV2VEC_FOLDER = 'data/Wav2vecPickles'
+INPUT_SHAPE=None # to modify
+NUM_OF_CLASSES = 2

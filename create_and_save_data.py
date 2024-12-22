@@ -1,5 +1,4 @@
 import os
-import wav_reader
 import numpy as np
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split

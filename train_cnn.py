@@ -8,11 +8,12 @@ import matplotlib
 from sklearn.metrics import accuracy_score, recall_score, f1_score
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from constants import *
 
 # Function to load data paths and labels from a CSV file
 def load_csv_data(csv_path):
     data = pd.read_csv(csv_path)
-    x_paths = data.iloc[:, 0].values  # Extract the paths to wav2vec matrices
+    x_paths = data.iloc[:, 1].values  # Extract the paths to wav2vec matrices
     labels = data['label'].values.astype(int)  # Extract and cast labels to integers
     return x_paths, labels
 
@@ -20,7 +21,8 @@ def load_csv_data(csv_path):
 def create_tensors_from_csv(x_paths, labels, start_idx, block_num):
     x, y = [], []
     for i in range(start_idx, min(start_idx + block_num, len(x_paths))):
-        wav2vec_matrix = np.load(x_paths[i])  # Load wav2vec matrix for a sample
+        wav2vec_matrix = np.load(x_paths[i], allow_pickle=True)  # Load wav2vec matrix for a sample
+        print(wav2vec_matrix.shape)
         x.append(wav2vec_matrix)
         y.append(labels[i])
     x = np.expand_dims(np.array(x), axis=1)  # Add channel dimension for convolutional input
@@ -35,14 +37,14 @@ def calculate_metrics(y_true, y_pred):
     return acc, recall, f1
 
 # Paths for data and results
-data_path = 'data/inputs.csv'  # Path where the data CSV is stored
+data_path = 'input.csv'  # Path where the data CSV is stored
 training_results_path = 'data/results/'  # Directory for saving training results
 
 if not os.path.exists(training_results_path):
     os.makedirs(training_results_path)
 
 # Load training data
-csv_file = data_path + 'inputs.csv'
+csv_file = INPUT_CSV
 x_paths, labels = load_csv_data(csv_file)
 
 print('Start training:')
@@ -75,7 +77,7 @@ for Epoch in range(epoch):
 
     # Iterating over training data in batches
     for i in range(0, len(x_paths), batch_size):
-        x_batch, y_batch = create_tensors_from_csv(x_paths, labels, i, batch_size)  # Create batch tensors
+        x_batch, y_batch = create_tensors_from_csv(WAV2VEC_FOLDER+"/"+x_paths, labels, i, batch_size)  # Create batch tensors
         x_batch, y_batch = x_batch.to(device), y_batch.to(device)  # Move tensors to the device
 
         optimizer.zero_grad()  # Zero out gradients from the previous step

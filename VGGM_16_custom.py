@@ -44,7 +44,7 @@ class Convolutional_Speaker_Identification(nn.Module):
         self.dense_1 = nn.Linear(4096, 1024)
         self.drop_2 = nn.Dropout(p=DROP_OUT)
 
-        self.dense_2 = nn.Linear(1024, c.NUM_OF_SPEAKERS)
+        self.dense_2 = nn.Linear(1024, c.NUM_OF_CLASSES)
 
     def forward(self, X):
 
