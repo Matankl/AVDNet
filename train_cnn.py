@@ -1,5 +1,5 @@
 import torch
-from VGGM_16_custom import Convolutional_Speaker_Identification
+from VGGM_16_custom import DeepFakeDetection
 import numpy as np
 import os
 import pandas as pd
@@ -10,6 +10,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import openpyxl
 from constants import *
+from tqdm import tqdm
+
+
 
 # Function to load data paths and labels from a CSV file
 def load_csv_data(csv_path):
@@ -51,9 +54,9 @@ def create_tensors_from_csv(x_paths, labels, start_idx, block_num, target_shape=
     # Stack tensors into a single batch tensor
     x = torch.stack(x)  # Shape: (batch_size, T, D) or (batch_size, channels, T, D)
     y = torch.tensor(y, dtype=torch.float)  # Convert labels to tensor
-
-    print(x.shape)
-    print(y.shape)
+    if(DEBUGMODE):
+        print(x.shape)
+        print(y.shape)
     return x, y
 
 
@@ -67,7 +70,7 @@ def calculate_metrics(y_true, y_pred):
     return acc, recall, f1
 
 # Paths for data and results
-data_path = 'input.csv'  # Path where the data CSV is stored
+data_path = 'data/wav2vac2.csv'  # Path where the data CSV is stored
 training_results_path = 'data/results/'  # Directory for saving training results
 
 if not os.path.exists(training_results_path):
@@ -81,9 +84,13 @@ print('Start training:')
 
 # Set the device to GPU if available, else fallback to CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print('Device:', device)
 
 # Initialize the custom model and move it to the selected device
-model = Convolutional_Speaker_Identification().to(device)
+model = DeepFakeDetection().to(device)
+
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+print("Optimizer: ", optimizer)
 
 # Setting model parameters
 learning_rate = model.get_learning_rate()  # Get learning rate from the model
@@ -101,13 +108,14 @@ results_df = pd.DataFrame([], columns=['train_loss', 'val_loss', 'accuracy', 're
 
 # Training loop
 for Epoch in range(epoch):
+    print(Epoch)
     model.train()  # Set model to training mode
     train_loss = 0
     count_train = 0
 
     # Iterating over training data in batches
-    for i in range(0, len(x_paths), batch_size):
-        x_batch, y_batch = create_tensors_from_csv(WAV2VEC_FOLDER+"/"+x_paths, labels, i, batch_size)  # Create batch tensors
+    for i in tqdm(range(0, len(x_paths), batch_size)):
+        x_batch, y_batch = create_tensors_from_csv(WAV2VEC_FOLDER+ "/" + x_paths, labels, i, batch_size)  # Create batch tensors
         x_batch, y_batch = x_batch.to(device), y_batch.to(device)  # Move tensors to the device
 
         optimizer.zero_grad()  # Zero out gradients from the previous step
@@ -127,7 +135,7 @@ for Epoch in range(epoch):
         all_y_true, all_y_pred = [], []  # Lists to store true and predicted labels
 
         for i in range(0, len(x_paths), batch_size):
-            x_batch, y_batch = create_tensors_from_csv(WAV2VEC_FOLDER+"/"+x_paths, labels, i, batch_size)  # Create batch tensors
+            x_batch, y_batch = create_tensors_from_csv(WAV2VEC_FOLDER+ "/" +x_paths, labels, i, batch_size)  # Create batch tensors
             x_batch, y_batch = x_batch.to(device), y_batch.to(device)  # Move tensors to the device
 
             y_pred = model(x_batch)  # Forward pass
@@ -140,7 +148,8 @@ for Epoch in range(epoch):
 
     # Log results of the current epoch
     results_df.loc[len(results_df)] = [train_loss, val_loss, accuracy, recall, f1]
-    print(f'Epoch {Epoch + 1}: Train Loss = {train_loss}, Val Loss = {val_loss}, Accuracy = {accuracy}, Recall = {recall}, F1 = {f1}')
+    if(DEBUGMODE):
+        print(f'Epoch {Epoch + 1}: Train Loss = {train_loss}, Val Loss = {val_loss}, Accuracy = {accuracy}, Recall = {recall}, F1 = {f1}')
 
 # Save results to an Excel file
 results_df.to_excel(dir_path + '/final_report.xlsx')

@@ -9,7 +9,10 @@ MAX_SEC = 10
 
 # Model
 WEIGHTS_DIRECTORY = "data/model"
-INPUT_CSV = "data/input.csv"
-WAV2VEC_FOLDER = 'data/Wav2vecPickles'
+INPUT_CSV = "data/inputs.csv"
+WAV2VEC_FOLDER = '/home/or/Desktop/DataSets/pklGeneratedFolder'
 INPUT_SHAPE=None # to modify
 NUM_OF_CLASSES = 2
+
+EPOCHS = 20
+DEBUGMODE = False

@@ -1,0 +1,4 @@
+0. implament the correct wav2vec in tts
+1.fit the model parameters to the corrct wav2vec
+
+2. get imputs for the real and the fake of all the data base

@@ -3,14 +3,16 @@ The code is based on : https://github.com/a-nagrani/VGGVox/issues/1
 ******************************************************************"""
 
 from torch import nn
-import constants as c
+import constants as const
 import torch
+
+from constants import DEBUGMODE
 
 DROP_OUT = 0.5
 DIMENSION = 512 * 300
 
 
-class Convolutional_Speaker_Identification(nn.Module):
+class DeepFakeDetection(nn.Module):
 
     def cal_paddind_shape(self, new_shape, old_shape, kernel_size, stride_size):
         return (stride_size * (new_shape - 1) + kernel_size - old_shape) / 2
@@ -19,13 +21,13 @@ class Convolutional_Speaker_Identification(nn.Module):
 
         super().__init__()
 
-        self.conv_2d_1 = nn.Conv2d(1, 96, kernel_size=(7, 7), stride=(2, 2), padding=1)
+        self.conv_2d_1 = nn.Conv2d(1, 96, kernel_size=(7, 7), stride=(1, 1), padding=1)
         self.bn_1 = nn.BatchNorm2d(96)
-        self.max_pool_2d_1 = nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2))
+        self.max_pool_2d_1 = nn.MaxPool2d(kernel_size=(3, 3), stride=(1, 1))
 
-        self.conv_2d_2 = nn.Conv2d(96, 256, kernel_size=(5, 5), stride=(2, 2), padding=1)
+        self.conv_2d_2 = nn.Conv2d(96, 256, kernel_size=(5, 5), stride=(1, 1), padding=1)
         self.bn_2 = nn.BatchNorm2d(256)
-        self.max_pool_2d_2 = nn.MaxPool2d(kernel_size=(3, 3), stride=(2, 2))
+        self.max_pool_2d_2 = nn.MaxPool2d(kernel_size=(3, 3), stride=(1, 1))
 
         self.conv_2d_3 = nn.Conv2d(256, 384, kernel_size=(3, 3), padding=1)
         self.bn_3 = nn.BatchNorm2d(384)
@@ -41,55 +43,64 @@ class Convolutional_Speaker_Identification(nn.Module):
         self.drop_1 = nn.Dropout(p=DROP_OUT)
 
         self.global_avg_pooling_2d = nn.AdaptiveAvgPool2d((1, 1))
-        self.dense_1 = nn.Linear(256, 128)
+        self.dense_1 = nn.Linear(4096, 512)
         self.drop_2 = nn.Dropout(p=DROP_OUT)
 
-        self.dense_2 = nn.Linear(128, 1)
+        self.dense_2 = nn.Linear(512, 1)
 
     def forward(self, X):
 
         x = nn.ReLU()(self.conv_2d_1(X))
         x = self.bn_1(x)
         x = self.max_pool_2d_1(x)
-        print(f"After max_pool_2d_1: {x.shape}")  # Debug shape
+        if DEBUGMODE:
+            print(f"After max_pool_2d_1: {x.shape}")  # Debug shape
 
         x = nn.ReLU()(self.conv_2d_2(x))
         x = self.bn_2(x)
         x = self.max_pool_2d_2(x)
-        print(f"After max_pool_2d_2: {x.shape}")  # Debug shape
+        if DEBUGMODE:
+            print(f"After max_pool_2d_2: {x.shape}")  # Debug shape
 
         x = nn.ReLU()(self.conv_2d_3(x))
         x = self.bn_3(x)
-        print(f"After conv_2d_3: {x.shape}")  # Debug shape
+        if DEBUGMODE:
+            print(f"After conv_2d_3: {x.shape}")  # Debug shape
 
         x = nn.ReLU()(self.conv_2d_4(x))
         x = self.bn_4(x)
-        print(f"After conv_2d_4: {x.shape}")  # Debug shape
+        if DEBUGMODE:
+            print(f"After conv_2d_4: {x.shape}")  # Debug shape
 
         x = nn.ReLU()(self.conv_2d_5(x))
         x = self.bn_5(x)
-        # x = self.max_pool_2d_3(x)
-        print(f"After max_pool_2d_3: {x.shape}")  # Debug shape
+        x = self.max_pool_2d_3(x)
+        if DEBUGMODE:
+            print(f"After max_pool_2d_3: {x.shape}")  # Debug shape
 
-        # x = nn.ReLU()(self.conv_2d_6(x))
+        x = nn.ReLU()(self.conv_2d_6(x))
         x = self.drop_1(x)
         x = self.global_avg_pooling_2d(x)
-        print(f"After conv_2d_6: {x.shape}")  # Debug shape
+        if DEBUGMODE:
+            print(f"After conv_2d_6: {x.shape}")  # Debug shape
 
         x = torch.flatten(x, 1)  # Correctly flattens to (batch_size, -1)
-        print(f"After reshape: {x.shape}")
+        if DEBUGMODE:
+            print(f"After reshape: {x.shape}")
         x = nn.ReLU()(self.dense_1(x))
         x = self.drop_2(x)
-        print(f"After drop_2: {x.shape}")
+        if DEBUGMODE:
+            print(f"After drop_2: {x.shape}")
 
         x = self.dense_2(x)
         y = nn.Sigmoid()(x)   # consider using Log-Softmax
 
-        print(f"Output shape: {y.shape}")
+        if DEBUGMODE:
+            print(f"Output shape: {y.shape}")
         return y
 
     def get_epochs(self):
-        return 3
+        return const.EPOCHS
 
     def get_learning_rate(self):
         return 0.0001
