@@ -1,3 +1,5 @@
+import torch
+
 # Signal processing
 SAMPLE_RATE = 16000
 PREEMPHASIS_ALPHA = 0.97
@@ -14,5 +16,7 @@ WAV2VEC_FOLDER = '/home/or/Desktop/DataSets/pklGeneratedFolder'
 INPUT_SHAPE=None # to modify
 NUM_OF_CLASSES = 2
 
-EPOCHS = 20
+EPOCHS = 1
 DEBUGMODE = False
+DEVICE = torch.DEVICE("cuda" if torch.cuda.is_available() else "cpu")
+

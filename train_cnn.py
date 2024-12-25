@@ -83,11 +83,10 @@ x_paths, labels = load_csv_data(csv_file)
 print('Start training:')
 
 # Set the device to GPU if available, else fallback to CPU
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print('Device:', device)
+print('Device:', DEVICE)
 
 # Initialize the custom model and move it to the selected device
-model = DeepFakeDetection().to(device)
+model = DeepFakeDetection().to(DEVICE)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 print("Optimizer: ", optimizer)
@@ -116,7 +115,7 @@ for Epoch in range(epoch):
     # Iterating over training data in batches
     for i in tqdm(range(0, len(x_paths), batch_size)):
         x_batch, y_batch = create_tensors_from_csv(WAV2VEC_FOLDER+ "/" + x_paths, labels, i, batch_size)  # Create batch tensors
-        x_batch, y_batch = x_batch.to(device), y_batch.to(device)  # Move tensors to the device
+        x_batch, y_batch = x_batch.to(DEVICE), y_batch.to(DEVICE)  # Move tensors to the device
 
         optimizer.zero_grad()  # Zero out gradients from the previous step
         y_pred = model(x_batch)  # Forward pass
@@ -136,7 +135,7 @@ for Epoch in range(epoch):
 
         for i in range(0, len(x_paths), batch_size):
             x_batch, y_batch = create_tensors_from_csv(WAV2VEC_FOLDER+ "/" +x_paths, labels, i, batch_size)  # Create batch tensors
-            x_batch, y_batch = x_batch.to(device), y_batch.to(device)  # Move tensors to the device
+            x_batch, y_batch = x_batch.to(DEVICE), y_batch.to(DEVICE)  # Move tensors to the device
 
             y_pred = model(x_batch)  # Forward pass
             val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()  # Accumulate validation loss
