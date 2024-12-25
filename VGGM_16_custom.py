@@ -9,7 +9,6 @@ import torch
 from constants import DEBUGMODE
 
 DROP_OUT = 0.5
-DIMENSION = 512 * 300
 
 
 class DeepFakeDetection(nn.Module):
@@ -50,6 +49,8 @@ class DeepFakeDetection(nn.Module):
 
     def forward(self, X):
 
+        if DEBUGMODE:
+            print(f"Input shape: {X.shape}")
         x = nn.ReLU()(self.conv_2d_1(X))
         x = self.bn_1(x)
         x = self.max_pool_2d_1(x)
@@ -94,9 +95,9 @@ class DeepFakeDetection(nn.Module):
 
         x = self.dense_2(x)
         y = nn.Sigmoid()(x)   # consider using Log-Softmax
-
         if DEBUGMODE:
             print(f"Output shape: {y.shape}")
+
         return y
 
     def get_epochs(self):
@@ -106,7 +107,7 @@ class DeepFakeDetection(nn.Module):
         return 0.0001
 
     def get_batch_size(self):
-        return 16
+        return 10
 
     def to_string(self):
         return "Convolutional_Speaker_Identification_Log_Softmax_Model-epoch_"

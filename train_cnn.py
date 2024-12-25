@@ -1,4 +1,3 @@
-import torch
 from VGGM_16_custom import DeepFakeDetection
 import numpy as np
 import os
@@ -11,7 +10,8 @@ import matplotlib.pyplot as plt
 import openpyxl
 from constants import *
 from tqdm import tqdm
-
+# Function to create tensors for training/validation batches from CSV data
+import torch
 
 
 # Function to load data paths and labels from a CSV file
@@ -21,9 +21,7 @@ def load_csv_data(csv_path):
     labels = data['label'].values.astype(int)  # Extract and cast labels to integers
     return x_paths, labels
 
-# Function to create tensors for training/validation batches from CSV data
-import numpy as np
-import torch
+
 
 def create_tensors_from_csv(x_paths, labels, start_idx, block_num, target_shape=None):
     """
@@ -47,8 +45,8 @@ def create_tensors_from_csv(x_paths, labels, start_idx, block_num, target_shape=
         wav2vec_matrix = np.load(x_paths[i], allow_pickle=True)
 
         # Convert the matrix to a tensor and add channel dimension
-        wav2vec_tensor = torch.tensor(wav2vec_matrix, dtype=torch.float)  # Convert to tensor
-        x.append(wav2vec_tensor)  # Directly append tensor (not wrapped in a list)
+        wav2vec_matrix = wav2vec_matrix.clone().detach().to(DEVICE)
+        x.append(wav2vec_matrix)  # Directly append tensor (not wrapped in a list)
         y.append(labels[i])
 
     # Stack tensors into a single batch tensor
@@ -62,7 +60,6 @@ def create_tensors_from_csv(x_paths, labels, start_idx, block_num, target_shape=
 
 # Function to calculate evaluation metrics
 def calculate_metrics(y_true, y_pred):
-    print(y_true, y_pred)
     y_pred_labels = (y_pred > 0.5).astype(int)  # Convert probabilities to binary predictions
     acc = accuracy_score(y_true, y_pred_labels)  # Calculate accuracy
     recall = recall_score(y_true, y_pred_labels)  # Calculate recall
@@ -107,19 +104,25 @@ results_df = pd.DataFrame([], columns=['train_loss', 'val_loss', 'accuracy', 're
 
 # Training loop
 for Epoch in range(epoch):
-    print(Epoch)
+    print("Epoch :", Epoch)
     model.train()  # Set model to training mode
     train_loss = 0
     count_train = 0
 
     # Iterating over training data in batches
     for i in tqdm(range(0, len(x_paths), batch_size)):
-        x_batch, y_batch = create_tensors_from_csv(WAV2VEC_FOLDER+ "/" + x_paths, labels, i, batch_size)  # Create batch tensors
+
+        x_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], labels, i, batch_size)  # Create batch tensors
         x_batch, y_batch = x_batch.to(DEVICE), y_batch.to(DEVICE)  # Move tensors to the device
 
+        if x_batch.size(0) != batch_size:
+            print("smaller batch", x_batch.size(0))
+            continue
+
         optimizer.zero_grad()  # Zero out gradients from the previous step
-        y_pred = model(x_batch)  # Forward pass
-        loss = criterion(y_pred.squeeze(), y_batch.float())  # Calculate loss
+        y_pred = model(x_batch).squeeze()  # Forward pass
+        y_batch = y_batch.view(-1)
+        loss = criterion(y_pred, y_batch.float())  # Calculate loss
         train_loss += loss.item()  # Accumulate training loss
         loss.backward()  # Backward pass (gradient computation)
         optimizer.step()  # Update model parameters
@@ -134,8 +137,12 @@ for Epoch in range(epoch):
         all_y_true, all_y_pred = [], []  # Lists to store true and predicted labels
 
         for i in range(0, len(x_paths), batch_size):
-            x_batch, y_batch = create_tensors_from_csv(WAV2VEC_FOLDER+ "/" +x_paths, labels, i, batch_size)  # Create batch tensors
+            x_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], labels, i, batch_size)  # Create batch tensors
             x_batch, y_batch = x_batch.to(DEVICE), y_batch.to(DEVICE)  # Move tensors to the device
+
+            if x_batch.size(0) != batch_size:
+                print("smaller batch", x_batch.size(0))
+                continue
 
             y_pred = model(x_batch)  # Forward pass
             val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()  # Accumulate validation loss
