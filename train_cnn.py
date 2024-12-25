@@ -70,34 +70,21 @@ def calculate_metrics(y_true, y_pred):
 data_path = 'data/wav2vac2.csv'  # Path where the data CSV is stored
 training_results_path = 'data/results/'  # Directory for saving training results
 
-if not os.path.exists(training_results_path):
-    os.makedirs(training_results_path)
-
 # Load training data
 csv_file = INPUT_CSV
 x_paths, labels = load_csv_data(csv_file)
 
-print('Start training:')
-
-# Set the device to GPU if available, else fallback to CPU
-print('Device:', DEVICE)
-
-# Initialize the custom model and move it to the selected device
-model = DeepFakeDetection().to(DEVICE)
-
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-print("Optimizer: ", optimizer)
-
-# Setting model parameters
+# Setting the model and his parameters
+model = DeepFakeDetection(EPOCHS, BATCH_SIZE, LEARNING_RATE).to(DEVICE)
 learning_rate = model.get_learning_rate()  # Get learning rate from the model
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  # Initialize Adam optimizer
 criterion = torch.nn.BCELoss()  # Binary cross-entropy loss function
 epoch, batch_size = model.get_epochs(), model.get_batch_size()  # Get number of epochs and batch size from the model
 
-# Preparing results folder
-now_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")  # Timestamp for unique result folder
-dir_path = training_results_path + now_time
-os.makedirs(dir_path, exist_ok=True)  # Create directory if it doesn't exist
+print('Start training:')
+print('Device:', DEVICE)
+print("Optimizer: ", optimizer)
+
 
 # Dataframe to store training results for each epoch
 results_df = pd.DataFrame([], columns=['train_loss', 'val_loss', 'accuracy', 'recall', 'f1_score'])
@@ -111,7 +98,6 @@ for Epoch in range(epoch):
 
     # Iterating over training data in batches
     for i in tqdm(range(0, len(x_paths), batch_size)):
-
         x_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], labels, i, batch_size)  # Create batch tensors
         x_batch, y_batch = x_batch.to(DEVICE), y_batch.to(DEVICE)  # Move tensors to the device
 
@@ -136,7 +122,7 @@ for Epoch in range(epoch):
         val_loss = 0
         all_y_true, all_y_pred = [], []  # Lists to store true and predicted labels
 
-        for i in range(0, len(x_paths), batch_size):
+        for i in tqdm(range(0, len(x_paths), batch_size)):
             x_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], labels, i, batch_size)  # Create batch tensors
             x_batch, y_batch = x_batch.to(DEVICE), y_batch.to(DEVICE)  # Move tensors to the device
 
@@ -154,8 +140,18 @@ for Epoch in range(epoch):
 
     # Log results of the current epoch
     results_df.loc[len(results_df)] = [train_loss, val_loss, accuracy, recall, f1]
-    if(DEBUGMODE):
-        print(f'Epoch {Epoch + 1}: Train Loss = {train_loss}, Val Loss = {val_loss}, Accuracy = {accuracy}, Recall = {recall}, F1 = {f1}')
+
+
+if DEBUGMODE:
+    print(f'EpochS {EPOCHS}: Train Loss = {train_loss}, Val Loss = {val_loss}, Accuracy = {accuracy}, Recall = {recall}, F1 = {f1}')
+
+# Preparing results folder
+now_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")  # Timestamp for unique result folder
+dir_path = training_results_path + now_time
+
+#creating the directories if needed
+os.makedirs(dir_path, exist_ok=True)  # Create directory if it doesn't exist
+os.makedirs(training_results_path, exist_ok=True)  # Create directory if it doesn't exist
 
 # Save results to an Excel file
 results_df.to_excel(dir_path + '/final_report.xlsx')
@@ -166,5 +162,7 @@ plt.plot(results_df['train_loss'], label='Train Loss')
 plt.plot(results_df['val_loss'], label='Val Loss')
 plt.ylabel('Loss')
 plt.xlabel('Epoch')
+plt.xlim(left=0)  # Ensure x-axis starts at 0
+plt.ylim(bottom=0)  # Ensure y-axis starts at 0
 plt.legend()
 plt.savefig(dir_path + '/loss_plot.jpeg')

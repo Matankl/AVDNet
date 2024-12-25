@@ -16,7 +16,11 @@ class DeepFakeDetection(nn.Module):
     def cal_paddind_shape(self, new_shape, old_shape, kernel_size, stride_size):
         return (stride_size * (new_shape - 1) + kernel_size - old_shape) / 2
 
-    def __init__(self):
+    def __init__(self, epochs, batch_size, learning_rate):
+
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
 
         super().__init__()
 
@@ -101,13 +105,13 @@ class DeepFakeDetection(nn.Module):
         return y
 
     def get_epochs(self):
-        return const.EPOCHS
+        return self.epochs
 
     def get_learning_rate(self):
-        return 0.0001
+        return self.learning_rate
 
     def get_batch_size(self):
-        return 10
+        return const.BATCH_SIZE
 
     def to_string(self):
         return "Convolutional_Speaker_Identification_Log_Softmax_Model-epoch_"
