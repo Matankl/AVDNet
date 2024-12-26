@@ -74,17 +74,28 @@ training_results_path = 'data/results/'  # Directory for saving training results
 csv_file = INPUT_CSV
 x_paths, labels = load_csv_data(csv_file)
 
-# Setting the model and his parameters
-model = DeepFakeDetection(EPOCHS, BATCH_SIZE, LEARNING_RATE).to(DEVICE)
+print('Start training:')
+
+# Set the device to GPU if available, else fallback to CPU
+
+print('Device:', DEVICE)
+
+# Initialize the custom model and move it to the selected device
+model = DeepFakeDetection().to(DEVICE)
+
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+print("Optimizer: ", optimizer)
+
+# Setting model parameters
 learning_rate = model.get_learning_rate()  # Get learning rate from the model
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  # Initialize Adam optimizer
 criterion = torch.nn.BCELoss()  # Binary cross-entropy loss function
 epoch, batch_size = model.get_epochs(), model.get_batch_size()  # Get number of epochs and batch size from the model
 
-print('Start training:')
-print('Device:', DEVICE)
-print("Optimizer: ", optimizer)
-
+# Preparing results folder
+now_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")  # Timestamp for unique result folder
+dir_path = training_results_path + now_time
+os.makedirs(dir_path, exist_ok=True)  # Create directory if it doesn't exist
 
 # Dataframe to store training results for each epoch
 results_df = pd.DataFrame([], columns=['train_loss', 'val_loss', 'accuracy', 'recall', 'f1_score'])

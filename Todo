@@ -2,3 +2,12 @@
 1.fit the model parameters to the corrct wav2vec
 
 2. get imputs for the real and the fake of all the data base
+
+
+
+
+
+hyper parameters to optimze:
+1. set learning rate decay
+2. set diffrent dropout
+3.
