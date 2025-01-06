@@ -77,15 +77,15 @@ def objective(trial):
         # Training loop
         for i in range(0, len(x_paths), batch_size):
             # Load training data in batches
-            x_batch, y_batch = create_tensors_from_csv(x_paths, labels, i, batch_size)
-            x_batch, y_batch = x_batch.to(DEVICE), y_batch.to(DEVICE)  # Move data to GPU/CPU
+            x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv(x_paths, labels, i, batch_size)
+            x_wav2vec_batch, y_batch = x_wav2vec_batch.to(DEVICE), y_batch.to(DEVICE)  # Move data to GPU/CPU
 
             # Zero the gradient
             optimizer.zero_grad()
 
             # Forward pass with mixed precision
             with autocast():
-                y_pred = model(x_batch).squeeze()  # Predict
+                y_pred = model(x_wav2vec_batch).squeeze()  # Predict
                 loss = criterion(y_pred, y_batch.float())  # Compute loss
 
             # Backward pass and optimizer step
@@ -106,12 +106,12 @@ def objective(trial):
         with torch.no_grad():  # Disable gradient computation for validation
             for i in range(0, len(x_paths), batch_size):
                 # Load validation data in batches
-                x_batch, y_batch = create_tensors_from_csv(x_paths, labels, i, batch_size)
-                x_batch, y_batch = x_batch.to(DEVICE), y_batch.to(DEVICE)
+                x_wav2vec_batch, y_batch = create_tensors_from_csv(x_paths, labels, i, batch_size)
+                x_wav2vec_batch, y_batch = x_wav2vec_batch.to(DEVICE), y_batch.to(DEVICE)
 
                 # Forward pass with mixed precision
                 with autocast():
-                    y_pred = model(x_batch).squeeze()
+                    y_pred = model(x_wav2vec_batch).squeeze()
                     val_loss += criterion(y_pred, y_batch.float()).item()  # Compute validation loss
 
                 # Collect true and predicted labels for metrics

@@ -45,16 +45,16 @@ class DeepFakeDetection(nn.Module):
         self.drop_1 = nn.Dropout(p=DROP_OUT)
 
         self.global_avg_pooling_2d = nn.AdaptiveAvgPool2d((1, 1))
-        self.dense_1 = nn.Linear(4096, 512)
+        self.dense_1 = nn.Linear(4096 + 156, 512)
         self.drop_2 = nn.Dropout(p=DROP_OUT)
 
         self.dense_2 = nn.Linear(512, 1)
 
-    def forward(self, X,Xfeatures):
+    def forward(self, X_Wav2Vec, X_Features):
 
         if DEBUGMODE:
-            print(f"Input shape: {X.shape}")
-        x = nn.ReLU()(self.conv_2d_1(X))
+            print(f"Input shape: {X_Wav2Vec.shape}")
+        x = nn.ReLU()(self.conv_2d_1(X_Wav2Vec))
         x = self.bn_1(x)
         x = self.max_pool_2d_1(x)
         if DEBUGMODE:
@@ -92,7 +92,7 @@ class DeepFakeDetection(nn.Module):
         x = torch.flatten(x, 1)  # Correctly flattens to (batch_size, -1)
 
         #append Xfeatures to the vector
-        x = torch.cat((x, Xfeatures), dim=0)
+        x = torch.cat((x, X_Features), dim=1)
 
         if DEBUGMODE:
             print(f"After reshape: {x.shape}")
