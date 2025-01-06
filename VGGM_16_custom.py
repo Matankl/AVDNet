@@ -50,7 +50,7 @@ class DeepFakeDetection(nn.Module):
 
         self.dense_2 = nn.Linear(512, 1)
 
-    def forward(self, X):
+    def forward(self, X,Xfeatures):
 
         if DEBUGMODE:
             print(f"Input shape: {X.shape}")
@@ -88,7 +88,12 @@ class DeepFakeDetection(nn.Module):
         if DEBUGMODE:
             print(f"After conv_2d_6: {x.shape}")  # Debug shape
 
+        #flatning the conv to be a vecor for the dense layer
         x = torch.flatten(x, 1)  # Correctly flattens to (batch_size, -1)
+
+        #append Xfeatures to the vector
+        x = torch.cat((x, Xfeatures), dim=0)
+
         if DEBUGMODE:
             print(f"After reshape: {x.shape}")
         x = nn.ReLU()(self.dense_1(x))

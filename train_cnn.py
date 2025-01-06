@@ -1,4 +1,4 @@
-from VGGM_16_custom import DeepFakeDetection
+import torch
 import numpy as np
 import os
 import pandas as pd
@@ -19,7 +19,8 @@ def load_csv_data(csv_path):
     data = pd.read_csv(csv_path)
     x_paths = data.iloc[:, 1].values  # Extract the paths to wav2vec matrices
     labels = data['label'].values.astype(int)  # Extract and cast labels to integers
-    return x_paths, labels
+    Xfeatures = data.iloc[:, 2:-1].values  # Corrected slicing for Xfeatures
+    return x_paths, labels, Xfeatures
 
 
 
@@ -72,19 +73,15 @@ training_results_path = 'data/results/'  # Directory for saving training results
 
 # Load training data
 csv_file = INPUT_CSV
-x_paths, labels = load_csv_data(csv_file)
+x_paths, labels, Xfeatures = load_csv_data(csv_file)
 
 print('Start training:')
 
 # Set the device to GPU if available, else fallback to CPU
-
-print('Device:', DEVICE)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Initialize the custom model and move it to the selected device
-model = DeepFakeDetection().to(DEVICE)
-
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-print("Optimizer: ", optimizer)
+model = Convolutional_Speaker_Identification().to(device)
 
 # Setting model parameters
 learning_rate = model.get_learning_rate()  # Get learning rate from the model
@@ -117,7 +114,7 @@ for Epoch in range(epoch):
             continue
 
         optimizer.zero_grad()  # Zero out gradients from the previous step
-        y_pred = model(x_batch).squeeze()  # Forward pass
+        y_pred = model(x_batch, Xfeatures).squeeze()  # Forward pass
         y_batch = y_batch.view(-1)
         loss = criterion(y_pred, y_batch.float())  # Calculate loss
         train_loss += loss.item()  # Accumulate training loss
@@ -125,13 +122,13 @@ for Epoch in range(epoch):
         optimizer.step()  # Update model parameters
         count_train += 1
 
-    train_loss = train_loss / count_train  # Calculate average training loss
+        train_loss = train_loss / count_train  # Calculate average training loss
 
-    # Validation phase
-    with torch.no_grad():
-        model.eval()  # Set model to evaluation mode
-        val_loss = 0
-        all_y_true, all_y_pred = [], []  # Lists to store true and predicted labels
+        # Validation phase
+        with torch.no_grad():
+            model.eval()  # Set model to evaluation mode
+            val_loss = 0
+            all_y_true, all_y_pred = [], []  # Lists to store true and predicted labels
 
         for i in tqdm(range(0, len(x_paths), batch_size)):
             x_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], labels, i, batch_size)  # Create batch tensors
@@ -141,13 +138,13 @@ for Epoch in range(epoch):
                 print("smaller batch", x_batch.size(0))
                 continue
 
-            y_pred = model(x_batch)  # Forward pass
-            val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()  # Accumulate validation loss
-            all_y_true.extend(y_batch.cpu().numpy())  # Collect true labels
-            all_y_pred.extend(y_pred.squeeze().cpu().numpy())  # Collect predicted probabilities
+                y_pred = model(x_batch)  # Forward pass
+                val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()  # Accumulate validation loss
+                all_y_true.extend(y_batch.cpu().numpy())  # Collect true labels
+                all_y_pred.extend(y_pred.squeeze().cpu().numpy())  # Collect predicted probabilities
 
-        val_loss = val_loss / count_train  # Calculate average validation loss
-        accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))  # Compute metrics
+            val_loss = val_loss / count_train  # Calculate average validation loss
+            accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))  # Compute metrics
 
     # Log results of the current epoch
     results_df.loc[len(results_df)] = [train_loss, val_loss, accuracy, recall, f1]
