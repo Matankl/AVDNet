@@ -9,7 +9,6 @@ from constants import DEBUGMODE
 
 DROP_OUT = 0.5
 
-
 class DeepFakeDetection(nn.Module):
 
     def cal_paddind_shape(self, new_shape, old_shape, kernel_size, stride_size):
@@ -43,9 +42,9 @@ class DeepFakeDetection(nn.Module):
 
         self.conv_2d_6 = nn.Conv2d(256, 4096, kernel_size=(9, 1), padding=0)
         self.drop_1 = nn.Dropout(p=DROP_OUT)
-
         self.global_avg_pooling_2d = nn.AdaptiveAvgPool2d((1, 1))
-        self.dense_1 = nn.Linear(4096 + 156, 512)
+
+        self.dense_1 = nn.Linear(4096 + 0, 512)
         self.drop_2 = nn.Dropout(p=DROP_OUT)
 
         self.dense_2 = nn.Linear(512, 1)
@@ -88,11 +87,11 @@ class DeepFakeDetection(nn.Module):
         if DEBUGMODE:
             print(f"After conv_2d_6: {x.shape}")  # Debug shape
 
-        #flatning the conv to be a vecor for the dense layer
+        #flatning the conv to be a vector for the dense layer
         x = torch.flatten(x, 1)  # Correctly flattens to (batch_size, -1)
 
         #append Xfeatures to the vector
-        x = torch.cat((x, X_Features), dim=1)
+        # x = torch.cat((x, X_Features), dim=1)
 
         if DEBUGMODE:
             print(f"After reshape: {x.shape}")
@@ -102,7 +101,7 @@ class DeepFakeDetection(nn.Module):
             print(f"After drop_2: {x.shape}")
 
         x = self.dense_2(x)
-        y = nn.Sigmoid()(x)   # consider using Log-Softmax
+        y = nn.Sigmoid()(x)   # consider using Sigmoid
         if DEBUGMODE:
             print(f"Output shape: {y.shape}")
 

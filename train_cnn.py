@@ -11,37 +11,23 @@ import matplotlib.pyplot as plt
 import openpyxl
 from constants import *
 from tqdm import tqdm
-# Function to create tensors for training/validation batches from CSV data
-import torch
 
 import torch
 
-# Get the current GPU memory usage
-if torch.cuda.is_available():
-    total_memory = torch.cuda.get_device_properties(0).total_memory / 1e9  # Convert bytes to GB
-    reserved_memory = torch.cuda.memory_reserved(0) / 1e9  # Convert bytes to GB
-    allocated_memory = torch.cuda.memory_allocated(0) / 1e9  # Convert bytes to GB
-    free_memory = reserved_memory - allocated_memory
-
-    print(f"Total GPU memory: {total_memory:.2f} GB")
-    print(f"Allocated memory: {allocated_memory:.2f} GB")
-    print(f"Reserved memory: {reserved_memory:.2f} GB")
-    print(f"Free memory: {free_memory:.2f} GB")
-else:
-    print("CUDA is not available.")
 
 
 
 # Function to load data paths and labels from a CSV file
 def load_csv_data(csv_path):
     data = pd.read_csv(csv_path)
+    data = data.sample(frac=0.2).reset_index(drop=True)
     x_paths = data.iloc[:, 1].values  # Extract the paths to wav2vec matrices
     labels = data['label'].values.astype(int)  # Extract and cast labels to integers
     Xfeatures = data.iloc[:, 2:-1].values  # Corrected slicing for Xfeatures
     return x_paths, Xfeatures, labels
 
 
-
+# Function to create tensors for training/validation batches from CSV data
 def create_tensors_from_csv(x_paths, Xfeatures, labels, start_idx, block_num, target_shape=None):
     """
     Creates tensors from wav2vec matrices and labels.
@@ -81,7 +67,6 @@ def create_tensors_from_csv(x_paths, Xfeatures, labels, start_idx, block_num, ta
         print(y.shape)
     return x_wav2vec, x_vectors, y
 
-
 # Function to calculate evaluation metrics
 def calculate_metrics(y_true, y_pred):
     y_pred_labels = (y_pred > 0.5).astype(int)  # Convert probabilities to binary predictions
@@ -104,10 +89,7 @@ print('Start training:')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Initialize the custom model and move it to the selected device
-model = DeepFakeDetection(EPOCHS, batch_size = BATCH_SIZE, learning_rate= 0.001).to(DEVICE)
-
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-print("Optimizer: ", optimizer)
+model = DeepFakeDetection(EPOCHS, batch_size = BATCH_SIZE, learning_rate= 0.0001).to(DEVICE)
 
 # Setting model parameters
 learning_rate = model.get_learning_rate()  # Get learning rate from the model
@@ -115,10 +97,6 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  # Initialize
 criterion = torch.nn.BCELoss()  # Binary cross-entropy loss function
 epoch, batch_size = model.get_epochs(), model.get_batch_size()  # Get number of epochs and batch size from the model
 
-# Preparing results folder
-now_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")  # Timestamp for unique result folder
-dir_path = training_results_path + now_time
-os.makedirs(dir_path, exist_ok=True)  # Create directory if it doesn't exist
 
 # Dataframe to store training results for each epoch
 results_df = pd.DataFrame([], columns=['train_loss', 'val_loss', 'accuracy', 'recall', 'f1_score'])
@@ -129,6 +107,7 @@ for Epoch in range(epoch):
     model.train()  # Set model to training mode
     train_loss = 0
     count_train = 0
+    val_loss = 0
 
     # Iterating over training data in batches
     for i in tqdm(range(0, len(x_paths), batch_size)):
@@ -145,31 +124,32 @@ for Epoch in range(epoch):
         y_pred = y_pred.squeeze(-1)  # Ensure y_pred is also 1D
         # Calculate loss
         loss = criterion(y_pred, y_batch.float())
-        train_loss += loss.item()  # Accumulate training loss
-        loss.backward()  # Backward pass (gradient computation)
+        loss.backward()
         optimizer.step()  # Update model parameters
+
         count_train += 1
 
-        train_loss = train_loss / count_train  # Calculate average training loss
+        train_loss += loss.item()  # Accumulate training loss
+
+    train_loss = train_loss / count_train  # Calculate average training loss
 
     # Validation phase
     with torch.no_grad():
         model.eval()  # Set model to evaluation mode
-        val_loss = 0
         all_y_true, all_y_pred = [], []  # Lists to store true and predicted labels
 
-    for i in tqdm(range(0, len(x_paths), batch_size)):
-        x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], Xfeatures, labels, i, batch_size)  # Create batch tensors
-        x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.detach().to(DEVICE), x_features_batch.detach().to(DEVICE), y_batch.detach().to(DEVICE)  # Move tensors to the device
+        for i in tqdm(range(0, len(x_paths), batch_size)):
+            x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], Xfeatures, labels, i, batch_size)  # Create batch tensors
+            x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.detach().to(DEVICE), x_features_batch.detach().to(DEVICE), y_batch.detach().to(DEVICE)  # Move tensors to the device
 
-        if x_wav2vec_batch.size(0) != batch_size:
-            print("smaller batch", x_wav2vec_batch.size(0))
-            continue
+            if x_wav2vec_batch.size(0) != batch_size:
+                print("smaller batch", x_wav2vec_batch.size(0))
+                continue
 
-        y_pred = model(x_wav2vec_batch, x_features_batch).squeeze()  # Forward pass
-        val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()  # Accumulate validation loss
-        all_y_true.extend(y_batch.cpu().numpy())  # Collect true labels
-        all_y_pred.extend(y_pred.squeeze().cpu())  # Collect predicted probabilities
+            y_pred = model(x_wav2vec_batch, x_features_batch).squeeze()  # Forward pass
+            val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()  # Accumulate validation loss
+            all_y_true.extend(y_batch.cpu().numpy())  # Collect true labels
+            all_y_pred.extend(y_pred.squeeze().cpu())  # Collect predicted probabilities
 
     val_loss = val_loss / count_train  # Calculate average validation loss
     accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))  # Compute metrics
@@ -177,14 +157,11 @@ for Epoch in range(epoch):
     # Log results of the current epoch
     results_df.loc[len(results_df)] = [train_loss, val_loss, accuracy, recall, f1]
 
-
-if DEBUGMODE:
-    print(f'EpochS {EPOCHS}: Train Loss = {train_loss}, Val Loss = {val_loss}, Accuracy = {accuracy}, Recall = {recall}, F1 = {f1}')
+    print(f'Epochs {Epoch}: Train Loss = {train_loss}, Val Loss = {val_loss}, Accuracy = {accuracy}, Recall = {recall}, F1 = {f1}')
 
 # Preparing results folder
 now_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")  # Timestamp for unique result folder
 dir_path = training_results_path + now_time
-
 #creating the directories if needed
 os.makedirs(dir_path, exist_ok=True)  # Create directory if it doesn't exist
 os.makedirs(training_results_path, exist_ok=True)  # Create directory if it doesn't exist
