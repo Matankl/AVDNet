@@ -81,7 +81,10 @@ print('Start training:')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Initialize the custom model and move it to the selected device
-model = Convolutional_Speaker_Identification().to(device)
+model = DeepFakeDetection(EPOCHS, batch_size = BATCH_SIZE, learning_rate= 0.001).to(DEVICE)
+
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+print("Optimizer: ", optimizer)
 
 # Setting model parameters
 learning_rate = model.get_learning_rate()  # Get learning rate from the model
