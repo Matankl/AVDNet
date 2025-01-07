@@ -4,7 +4,8 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.tensorboard import SummaryWriter
 from constants import *
 from VGGM_16_custom import *
-from train_cnn import create_tensors_from_csv
+from train_cnn import create_tensors_from_csv, load_csv_data, calculate_metrics
+import numpy as np
 
 
 # Early stopping implementation
@@ -68,6 +69,9 @@ def objective(trial):
     # TensorBoard writer for real-time monitoring
     writer = SummaryWriter(log_dir=f'logs/trial_{trial.number}')
 
+    # load the data
+    x_paths, Xfeatures, labels = load_csv_data(INPUT_CSV)
+
     # Training and validation
     train_loss, val_loss = 0, 0
     for epoch in range(10):  # Train for a limited number of epochs during optimization
@@ -77,8 +81,8 @@ def objective(trial):
         # Training loop
         for i in range(0, len(x_paths), batch_size):
             # Load training data in batches
-            x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv(x_paths, labels, i, batch_size)
-            x_wav2vec_batch, y_batch = x_wav2vec_batch.to(DEVICE), y_batch.to(DEVICE)  # Move data to GPU/CPU
+            x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv(x_paths, Xfeatures, labels, i, batch_size)
+            x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.to(DEVICE), x_features_batch.to(DEVICE), y_batch.to(DEVICE)  # Move data to GPU/CPU
 
             # Zero the gradient
             optimizer.zero_grad()
@@ -106,8 +110,8 @@ def objective(trial):
         with torch.no_grad():  # Disable gradient computation for validation
             for i in range(0, len(x_paths), batch_size):
                 # Load validation data in batches
-                x_wav2vec_batch, y_batch = create_tensors_from_csv(x_paths, labels, i, batch_size)
-                x_wav2vec_batch, y_batch = x_wav2vec_batch.to(DEVICE), y_batch.to(DEVICE)
+                x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv(x_paths, labels, i, batch_size)
+                x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.to(DEVICE), x_features_batch.to(DEVICE), y_batch.to(DEVICE)  # Move data to GPU/CPU
 
                 # Forward pass with mixed precision
                 with autocast():
@@ -144,7 +148,7 @@ def objective(trial):
 
 # Run the Optuna optimization
 study = optuna.create_study(direction='minimize')  # Minimize validation loss
-study.optimize(objective, n_trials=50)  # Perform 50 trials
+study.optimize(objective, n_trials=20)  # Perform X trials
 
 # Print the best hyperparameters
 print("Best hyperparameters:", study.best_params)

@@ -1,4 +1,3 @@
-import torch
 import numpy as np
 import os
 import pandas as pd
@@ -6,26 +5,21 @@ from datetime import datetime
 import matplotlib
 from sklearn.metrics import accuracy_score, recall_score, f1_score
 from VGGM_16_custom import DeepFakeDetection
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import openpyxl
 from constants import *
 from tqdm import tqdm
-
 import torch
-
-
-
+matplotlib.use('Agg')
 
 # Function to load data paths and labels from a CSV file
 def load_csv_data(csv_path):
     data = pd.read_csv(csv_path)
-    data = data.sample(frac=0.2).reset_index(drop=True)
+    data = data.sample(frac=1).reset_index(drop=True)
     x_paths = data.iloc[:, 1].values  # Extract the paths to wav2vec matrices
     labels = data['label'].values.astype(int)  # Extract and cast labels to integers
     Xfeatures = data.iloc[:, 2:-1].values  # Corrected slicing for Xfeatures
     return x_paths, Xfeatures, labels
-
 
 # Function to create tensors for training/validation batches from CSV data
 def create_tensors_from_csv(x_paths, Xfeatures, labels, start_idx, block_num, target_shape=None):
@@ -75,10 +69,6 @@ def calculate_metrics(y_true, y_pred):
     f1 = f1_score(y_true, y_pred_labels)  # Calculate F1-score
     return acc, recall, f1
 
-# Paths for data and results
-data_path = 'data/wav2vac2.csv'  # Path where the data CSV is stored
-training_results_path = 'data/results/'  # Directory for saving training results
-
 # Load training data
 csv_file = INPUT_CSV
 x_paths, Xfeatures, labels = load_csv_data(csv_file)
@@ -97,7 +87,6 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)  # Initialize
 criterion = torch.nn.BCELoss()  # Binary cross-entropy loss function
 epoch, batch_size = model.get_epochs(), model.get_batch_size()  # Get number of epochs and batch size from the model
 
-
 # Dataframe to store training results for each epoch
 results_df = pd.DataFrame([], columns=['train_loss', 'val_loss', 'accuracy', 'recall', 'f1_score'])
 
@@ -113,9 +102,10 @@ for Epoch in range(epoch):
     for i in tqdm(range(0, len(x_paths), batch_size)):
         x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], Xfeatures, labels, i, batch_size)  # Create batch tensors
         x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.detach().to(DEVICE), x_features_batch.detach().to(DEVICE), y_batch.detach().to(DEVICE)  # Move tensors to the device
-        if x_wav2vec_batch.size(0) != batch_size:
-            print("smaller batch", x_wav2vec_batch.size(0))
-            continue
+
+        # if x_wav2vec_batch.size(0) != batch_size:
+        #     print("smaller batch", x_wav2vec_batch.size(0))
+        #     continue
 
         optimizer.zero_grad()  # Zero out gradients from the previous step
         y_pred = model(x_wav2vec_batch, x_features_batch)  # Forward pass
@@ -142,9 +132,9 @@ for Epoch in range(epoch):
             x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], Xfeatures, labels, i, batch_size)  # Create batch tensors
             x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.detach().to(DEVICE), x_features_batch.detach().to(DEVICE), y_batch.detach().to(DEVICE)  # Move tensors to the device
 
-            if x_wav2vec_batch.size(0) != batch_size:
-                print("smaller batch", x_wav2vec_batch.size(0))
-                continue
+            # if x_wav2vec_batch.size(0) != batch_size:
+            #     print("smaller batch", x_wav2vec_batch.size(0))
+            #     continue
 
             y_pred = model(x_wav2vec_batch, x_features_batch).squeeze()  # Forward pass
             val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()  # Accumulate validation loss
@@ -161,21 +151,24 @@ for Epoch in range(epoch):
 
 # Preparing results folder
 now_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")  # Timestamp for unique result folder
-dir_path = training_results_path + now_time
+dir_path = TRAINING_DATA_PATH + now_time
 #creating the directories if needed
 os.makedirs(dir_path, exist_ok=True)  # Create directory if it doesn't exist
-os.makedirs(training_results_path, exist_ok=True)  # Create directory if it doesn't exist
+os.makedirs(TRAINING_DATA_PATH, exist_ok=True)  # Create directory if it doesn't exist
 
 # Save results to an Excel file
 results_df.to_excel(dir_path + '/final_report.xlsx')
 
+def plot_loss(data):
+    plt.figure(figsize=(10, 10))
+    plt.plot(data['train_loss'], label='Train Loss')
+    plt.plot(data['val_loss'], label='Val Loss')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.xlim(left=0)  # Ensure x-axis starts at 0
+    plt.ylim(bottom=0)  # Ensure y-axis starts at 0
+    plt.legend()
+    plt.savefig(dir_path + '/loss_plot.jpeg')
+
 # Plot loss curves and save as an image
-plt.figure(figsize=(10, 10))
-plt.plot(results_df['train_loss'], label='Train Loss')
-plt.plot(results_df['val_loss'], label='Val Loss')
-plt.ylabel('Loss')
-plt.xlabel('Epoch')
-plt.xlim(left=0)  # Ensure x-axis starts at 0
-plt.ylim(bottom=0)  # Ensure y-axis starts at 0
-plt.legend()
-plt.savefig(dir_path + '/loss_plot.jpeg')
+plot_loss(results_df)
