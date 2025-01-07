@@ -2,8 +2,10 @@ import torch
 
 # Model
 WEIGHTS_DIRECTORY = "data/model"
-INPUT_CSV = "D:\Database\Audio\DeepFakeProject\inputs.csv"
-WAV2VEC_FOLDER = 'D:\Database\Audio\DeepFakeProject\Wav2vecMatrices'
+INPUT_CSV = "/home/or/Desktop/DataSets/DeepFakeProject/Inputs.csv"
+WAV2VEC_FOLDER = '/home/or/Desktop/DataSets/DeepFakeProject/Wav2vecMatrices' #where
+INPUT_SHAPE=None # to modify
+NUM_OF_CLASSES = 2
 
 EPOCHS = 25
 DEBUGMODE = False
