@@ -1,13 +1,14 @@
 import os
 from datetime import datetime
 import matplotlib
-from VGGM_16_custom import DeepFakeDetection
+from VGG_16_custom import DeepFakeDetection
 import matplotlib.pyplot as plt
 import openpyxl
 from tqdm import tqdm
 matplotlib.use('Agg')
-from constants import *
+# folders import
 from data_methods import *
+from constants import *
 
 # Load training data
 csv_file = INPUT_CSV
@@ -19,7 +20,7 @@ print('Start training:')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Initialize the custom model and move it to the selected device
-model = DeepFakeDetection(EPOCHS, batch_size = BATCH_SIZE, learning_rate= 0.0001).to(DEVICE)
+model = DeepFakeDetection(EPOCHS, batch_size = BATCH_SIZE, learning_rate= 0.0001, dense_layers= DENSE_LAYERS).to(DEVICE)
 
 # Setting model parameters
 learning_rate = model.get_learning_rate()  # Get learning rate from the model
@@ -42,10 +43,6 @@ for Epoch in range(epoch):
     for i in tqdm(range(0, len(x_paths), batch_size)):
         x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], Xfeatures, labels, i, batch_size)  # Create batch tensors
         x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.detach().to(DEVICE), x_features_batch.detach().to(DEVICE), y_batch.detach().to(DEVICE)  # Move tensors to the device
-
-        # if x_wav2vec_batch.size(0) != batch_size:
-        #     print("smaller batch", x_wav2vec_batch.size(0))
-        #     continue
 
         optimizer.zero_grad()  # Zero out gradients from the previous step
         y_pred = model(x_wav2vec_batch, x_features_batch)  # Forward pass

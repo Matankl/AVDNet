@@ -3,7 +3,7 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.tensorboard import SummaryWriter
 from constants import *
-from VGGM_16_custom import *
+from VGG_16_custom import *
 from train_cnn import create_tensors_from_csv, load_csv_data, calculate_metrics
 import numpy as np
 

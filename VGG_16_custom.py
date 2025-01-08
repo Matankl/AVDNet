@@ -4,21 +4,19 @@ The code is based on : https://github.com/a-nagrani/VGGVox/issues/1
 
 from torch import nn
 import constants as const
-import torch
-from constants import DEBUGMODE
-
-DROP_OUT = 0.5
+from constants import *
 
 class DeepFakeDetection(nn.Module):
 
     def cal_paddind_shape(self, new_shape, old_shape, kernel_size, stride_size):
         return (stride_size * (new_shape - 1) + kernel_size - old_shape) / 2
 
-    def __init__(self, epochs, batch_size, learning_rate):
+    def __init__(self, epochs, batch_size, learning_rate, dense_layers = 3):
 
         self.epochs = epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
+        self.dense_layers = dense_layers
 
         super().__init__()
 
@@ -44,10 +42,30 @@ class DeepFakeDetection(nn.Module):
         self.drop_1 = nn.Dropout(p=DROP_OUT)
         self.global_avg_pooling_2d = nn.AdaptiveAvgPool2d((1, 1))
 
-        self.dense_1 = nn.Linear(4096 + 0, 512)
-        self.drop_2 = nn.Dropout(p=DROP_OUT)
+        # Dense Layers
+        self.dense_layers = nn.ModuleList()  # Flexible list of dense layers
+        self.dropouts = nn.ModuleList()  # Flexible list of Dropout layers
 
-        self.dense_2 = nn.Linear(512, 1)
+        input_size = 4096  # Starting size after convolutional layers
+        output_size = 1  # Final output size
+
+        # Calculate evenly decreasing layer sizes
+        layer_sizes = [
+            int(input_size - i * (input_size - output_size) / (dense_layers - 1))
+            for i in range(dense_layers)
+        ]
+
+        # Create dense layers and corresponding dropout layers
+        for i in range(len(layer_sizes) - 1):
+            self.dense_layers.append(nn.Linear(layer_sizes[i], layer_sizes[i + 1]))
+            self.dropouts.append(nn.Dropout(p=DROP_OUT))
+
+        self.output_layer = nn.Linear(layer_sizes[-1], output_size)
+
+        # self.dense_1 = nn.Linear(4096 + 0, 512)
+        # self.drop_2 = nn.Dropout(p=DROP_OUT)
+        #
+        # self.dense_2 = nn.Linear(512, 1)
 
     def forward(self, X_Wav2Vec, X_Features):
 
@@ -95,15 +113,15 @@ class DeepFakeDetection(nn.Module):
 
         if DEBUGMODE:
             print(f"After reshape: {x.shape}")
-        x = nn.ReLU()(self.dense_1(x))
-        x = self.drop_2(x)
-        if DEBUGMODE:
-            print(f"After drop_2: {x.shape}")
 
-        x = self.dense_2(x)
-        y = nn.Sigmoid()(x)   # consider using Sigmoid
-        if DEBUGMODE:
-            print(f"Output shape: {y.shape}")
+        # Dense Layers
+        for dense_layer, dropout in zip(self.dense_layers, self.dropouts):
+            x = nn.ReLU()(dense_layer(x))
+            x = dropout(x)
+
+        # Final Output Layer
+        x = self.output_layer(x)
+        y = nn.Sigmoid()(x)  # Binary classification
 
         return y
 
