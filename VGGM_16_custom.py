@@ -4,10 +4,9 @@ The code is based on : https://github.com/a-nagrani/VGGVox/issues/1
 
 from torch import nn
 import constants as const
-import torch
-from constants import DEBUGMODE
+from constants import*
 
-DROP_OUT = 0.5
+
 
 class DeepFakeDetection(nn.Module):
 
