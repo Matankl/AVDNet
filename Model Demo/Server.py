@@ -1,5 +1,6 @@
 import socket
 import os
+import sys
 
 # Define the pipeline function
 def pipeline(audio_file_path):
@@ -10,12 +11,17 @@ def pipeline(audio_file_path):
     print(f"Running pipeline on: {audio_file_path}")
     return "Real" if "real" in audio_file_path.lower() else "Fake"
 
-def start_server(host='127.0.0.1', port=55449):
+def start_server(host='127.0.0.1', port=55451):
     """
     Starts the server to listen for incoming connections from the client.
     The server receives a file name and its content, processes the file through a pipeline,
     and sends the result back to the client.
     """
+
+    # Manually flushing sys.stdout
+    print("This will also be flushed immediately.")
+    sys.stdout.flush()
+
     # Create a socket for TCP communication
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((host, port))  # Bind the socket to the specified host and port

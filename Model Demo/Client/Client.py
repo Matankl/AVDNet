@@ -1,5 +1,6 @@
 import socket
 import os
+import sys
 
 def choose_audio_file(demo_path):
     """
@@ -40,11 +41,15 @@ def choose_audio_file(demo_path):
 
 
 
-def send_audio_file(file_path, host='127.0.0.1', port=55449):
+def send_audio_file(file_path, host='127.0.0.1', port=55451):
     """
     Connects to the server and sends the selected audio file for processing.
     Receives the result from the server and displays it to the user.
     """
+    # Manually flushing sys.stdout
+    print("This will also be flushed immediately.")
+    sys.stdout.flush()
+
     # Extract the file name from the full file path
     filename = os.path.basename(file_path)
 
