@@ -10,8 +10,9 @@ from constants import *
 from data_methods import *
 
 # Load training data
-csv_file = INPUT_CSV
-x_paths, Xfeatures, labels = load_csv_data(csv_file)
+x_paths, Xfeatures, labels = load_csv_data(TRAIN_CSV)
+x_test_paths, X_test_features, test_labels = load_csv_data(TEST_CSV)
+x_validation_paths, X_validation_features, validation_labels = load_csv_data(VALIDATION_CSV)
 
 print('Start training:')
 
@@ -63,18 +64,14 @@ for Epoch in range(epoch):
 
     train_loss = train_loss / count_train  # Calculate average training loss
 
-    # Validation phase
+    # Test phase
     with torch.no_grad():
         model.eval()  # Set model to evaluation mode
         all_y_true, all_y_pred = [], []  # Lists to store true and predicted labels
 
-        for i in tqdm(range(0, len(x_paths), batch_size)):
-            x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], Xfeatures, labels, i, batch_size)  # Create batch tensors
+        for i in tqdm(range(0, len(x_test_paths), batch_size)):
+            x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_test_paths], X_test_features, test_labels, i, batch_size)  # Create batch tensors
             x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.detach().to(DEVICE), x_features_batch.detach().to(DEVICE), y_batch.detach().to(DEVICE)  # Move tensors to the device
-
-            # if x_wav2vec_batch.size(0) != batch_size:
-            #     print("smaller batch", x_wav2vec_batch.size(0))
-            #     continue
 
             y_pred = model(x_wav2vec_batch, x_features_batch).squeeze()  # Forward pass
             val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()  # Accumulate validation loss
