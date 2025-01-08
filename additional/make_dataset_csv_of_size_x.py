@@ -85,8 +85,6 @@ def make_dataset_csv_of_size_x(csv_paths, output_path, number_of_lines):
     output_df.to_csv(output_path, index=False)
     print(f"Dataset created with {len(output_df)} lines and saved to '{output_path}'.")
 
-
-
 fake_folders_paths = [
     r'D:\Database\Audio/DeepFakeProject/fake/OUTETTS Fake audio 4s processed',
     r'D:\Database\Audio/DeepFakeProject/fake/Tortoise Fake audio 4s processed',
@@ -98,7 +96,7 @@ real_folders_paths = [
     r'D:\Database\Audio\DeepFakeProject\Real\Peoples speech 4s processed'
     ]
 
-total_examples = 2700
+total_examples = 27000
 ratio_fake, ratio_real = 0.5, 0.5
 ratio_train, ratio_test, ratio_validation = 0.8, 0.1, 0.1
 
