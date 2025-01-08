@@ -18,15 +18,16 @@ def make_dataset_csv_of_size_x(csv_paths, output_path, number_of_lines):
     Returns:
     - None
     """
-    # Ensure the output file does not already exist
-    if os.path.exists(output_path):
-        print(f"File '{output_path}' already exists.")
-        return
 
     lines_remain = number_of_lines
     lines_per_csv = number_of_lines // len(csv_paths)  # Integer division
     output_df = pd.DataFrame()  # Initialize the output DataFrame
     used_indices = {csv_path: set() for csv_path in csv_paths}  # Dictionary to track used indices
+
+    # Ensure the output file does not already exist
+    if os.path.exists(output_path):
+        output_df = pd.read_csv(output_path)
+        print(f"File '{output_path}' already exists.")
 
     # Process each CSV
     for csv_path in csv_paths:
@@ -86,28 +87,97 @@ def make_dataset_csv_of_size_x(csv_paths, output_path, number_of_lines):
 
 
 
-csv_paths = ['/home/or/Desktop/DataSets/DeepFakeProject/fake/OUTETTS Fake audio 4s processed/Train.csv',
-             '/home/or/Desktop/DataSets/DeepFakeProject/fake/Tortoise Fake audio 4s processed/Train.csv',
-             '/home/or/Desktop/DataSets/DeepFakeProject/fake/XTTS Fake audio 4s processed/Train.csv']
+fake_folders_paths = [
+    r'D:\Database\Audio/DeepFakeProject/fake/OUTETTS Fake audio 4s processed',
+    r'D:\Database\Audio/DeepFakeProject/fake/Tortoise Fake audio 4s processed',
+    r'D:\Database\Audio/DeepFakeProject/fake/XTTS Fake audio 4s processed'
+]
+
+real_folders_paths = [
+    r'D:\Database\Audio\DeepFakeProject\Real\cv corpus 20 4s processed',
+    r'D:\Database\Audio\DeepFakeProject\Real\Peoples speech 4s processed'
+    ]
+
+total_examples = 2700
+ratio_fake, ratio_real = 0.5, 0.5
+ratio_train, ratio_test, ratio_validation = 0.8, 0.1, 0.1
+
+number_train_fake = int(total_examples * ratio_fake * ratio_train)
+number_train_real = int(total_examples * ratio_real * ratio_train)
+number_test_fake = int(total_examples * ratio_fake * ratio_test)
+number_test_real = int(total_examples * ratio_real * ratio_test)
+number_validation_fake = int(total_examples * ratio_fake * ratio_validation)
+number_validation_real = int(total_examples * ratio_real * ratio_validation)
+
+print(f"The number of fake train : {number_train_fake}")
+print(f"The number of real train : {number_train_real}")
+print(f"The number of fake test : {number_test_fake}")
+print(f"The number of real test : {number_test_real}")
+print(f"The number of validation fake : {number_validation_fake}")
+print(f"The number of validation test : {number_validation_real}")
+
+print(f"Total : {number_train_fake + number_train_real + number_test_fake + number_test_real + number_validation_fake + number_validation_real}")
 
 
-make_dataset_csv_of_size_x(csv_paths, 'test_csv', 720)
+validation_paths = [os.path.join(path, "Validation.csv") for path in fake_folders_paths]
+train_paths = [os.path.join(path, "Train.csv") for path in fake_folders_paths]
+test_paths = [os.path.join(path, "Test.csv") for path in fake_folders_paths]
+
+#fake data
+make_dataset_csv_of_size_x(train_paths, 'train_30h.csv', number_train_fake)
+make_dataset_csv_of_size_x(validation_paths, 'validation_30h.csv', number_test_fake)
+make_dataset_csv_of_size_x(test_paths, 'test_30h.csv', number_validation_fake)
+
+validation_paths = [os.path.join(path, "Validation.csv") for path in real_folders_paths]
+train_paths = [os.path.join(path, "Train.csv") for path in real_folders_paths]
+test_paths = [os.path.join(path, "Test.csv") for path in real_folders_paths]
+
+#real data
+make_dataset_csv_of_size_x(train_paths, 'train_30h.csv', number_train_real)
+make_dataset_csv_of_size_x(validation_paths, 'validation_30h.csv', number_test_real)
+make_dataset_csv_of_size_x(test_paths, 'test_30h.csv', number_validation_real)
+
+def analyze_label_column(csv_file_path):
+    try:
+        # Load the CSV file into a pandas DataFrame
+        df = pd.read_csv(csv_file_path)
+
+        # Check if the "label" column exists
+        if "label" not in df.columns:
+            print("Error: The CSV file does not contain a 'label' column.")
+            return
+
+        # Count the occurrences of 0s and 1s in the "label" column
+        label_counts = df['label'].value_counts()
+
+        # Extract the counts for 0s and 1s (default to 0 if not present)
+        count_0 = label_counts.get(0, 0)
+        count_1 = label_counts.get(1, 0)
+
+        # Calculate the ratio of 0s to 1s
+        total = count_0 + count_1
+        if total == 0:
+            print("Error: The 'label' column is empty or contains no 0s or 1s.")
+            return
+
+        ratio_0 = count_0 / total
+        ratio_1 = count_1 / total
+
+        # Print the results
+        print(f"Count of 0s: {count_0}")
+        print(f"Count of 1s: {count_1}")
+        print(f"Ratio of 0s: {ratio_0:.2f}")
+        print(f"Ratio of 1s: {ratio_1:.2f}")
+
+    except FileNotFoundError:
+        print(f"Error: The file '{csv_file_path}' was not found.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Example usage
+for name in "train_30h.csv", "validation_30h.csv", "test_30h.csv":
+    analyze_label_column(name)
 
 
 # _____________________________________ private area dont check _____________________________#
@@ -121,7 +191,6 @@ def make_dataset_csv_of_size_x1(csv_paths, output_path, number_of_lines):
         return
 
     make_dataset_csv_of_size_x_rec(csv_paths, output_path, number_of_lines)
-
 
 
 def make_dataset_csv_of_size_x_rec(csv_paths, output_path, number_of_lines):
