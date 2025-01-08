@@ -60,7 +60,7 @@ for Epoch in range(epoch):
         model.eval()  # Set model to evaluation mode
         all_y_true, all_y_pred = [], []  # Lists to store true and predicted labels
 
-        for i in tqdm(range(0, len(x_test_paths), batch_size)):
+        for i in tqdm(range(0, len(x_test_paths), batch_size), desc="Training Progress"):
             x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_test_paths], X_test_features, test_labels, i, batch_size)  # Create batch tensors
             x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.to(DEVICE), x_features_batch.to(DEVICE), y_batch.to(DEVICE)  # Move tensors to the device
             y_pred = model(x_wav2vec_batch, x_features_batch).squeeze()  # Forward pass
