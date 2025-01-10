@@ -10,13 +10,13 @@ VALIDATION_CSV = "additional/validation_30h.csv"
 
 WAV2VEC_FOLDER = 'D:\Database\Audio\DeepFakeProject\Wav2vecMatrices' # The folder containing the Wav2Vec matrices
 
-EPOCHS = 50
+EPOCHS = 10
 DEBUGMODE = False
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # The model parameters
 BATCH_SIZE = 16
-DROP_OUT = 0.9
+DROP_OUT = 0.3
 
 # logs path
 TRAINING_DATA_PATH = 'data/results/'  # Directory for saving training results

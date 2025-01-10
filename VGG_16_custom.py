@@ -42,30 +42,30 @@ class DeepFakeDetection(nn.Module):
         self.drop_1 = nn.Dropout(p=DROP_OUT)
         self.global_avg_pooling_2d = nn.AdaptiveAvgPool2d((1, 1))
 
-        # Dense Layers
-        self.dense_layers = nn.ModuleList()  # Flexible list of dense layers
-        self.dropouts = nn.ModuleList()  # Flexible list of Dropout layers
-
-        input_size = 4096  # Starting size after convolutional layers
-        output_size = 1  # Final output size
-
-        # Calculate evenly decreasing layer sizes
-        layer_sizes = [
-            int(input_size - i * (input_size - output_size) / (dense_layers - 1))
-            for i in range(dense_layers)
-        ]
-
-        # Create dense layers and corresponding dropout layers
-        for i in range(len(layer_sizes) - 1):
-            self.dense_layers.append(nn.Linear(layer_sizes[i], layer_sizes[i + 1]))
-            self.dropouts.append(nn.Dropout(p=DROP_OUT))
-
-        self.output_layer = nn.Linear(layer_sizes[-1], output_size)
-
-        # self.dense_1 = nn.Linear(4096 + 0, 512)
-        # self.drop_2 = nn.Dropout(p=DROP_OUT)
+        # # Dense Layers
+        # self.dense_layers = nn.ModuleList()  # Flexible list of dense layers
+        # self.dropouts = nn.ModuleList()  # Flexible list of Dropout layers
         #
-        # self.dense_2 = nn.Linear(512, 1)
+        # input_size = 4096  # Starting size after convolutional layers
+        # output_size = 1  # Final output size
+        #
+        # # Calculate evenly decreasing layer sizes
+        # layer_sizes = [
+        #     int(input_size - i * (input_size - output_size) / (dense_layers - 1))
+        #     for i in range(dense_layers)
+        # ]
+        #
+        # Create dense layers and corresponding dropout layers
+        # for i in range(len(layer_sizes) - 1):
+        #     self.dense_layers.append(nn.Linear(layer_sizes[i], layer_sizes[i + 1]))
+        #     self.dropouts.append(nn.Dropout(p=DROP_OUT))
+        # self.output_layer = nn.Linear(layer_sizes[-1], output_size)
+
+        # self.output_layer = nn.Linear(layer_sizes[-1], output_size)
+        self.dense_1 = nn.Linear(4096 + 0, 512)
+        self.drop_2 = nn.Dropout(p=DROP_OUT)
+
+        self.dense_2 = nn.Linear(512, 1)
 
     def forward(self, X_Wav2Vec, X_Features):
 
@@ -114,13 +114,18 @@ class DeepFakeDetection(nn.Module):
         if DEBUGMODE:
             print(f"After reshape: {x.shape}")
 
-        # Dense Layers
-        for dense_layer, dropout in zip(self.dense_layers, self.dropouts):
-            x = nn.ReLU()(dense_layer(x))
-            x = dropout(x)
+        # # Dense Layers
+        # for dense_layer, dropout in zip(self.dense_layers, self.dropouts):
+        #     x = nn.ReLU()(dense_layer(x))
+        #     x = dropout(x)
+
+        x = nn.ReLU()(self.dense_1(x))
+
+        x = self.drop_2(x)
+        x = self.dense_2(x)
 
         # Final Output Layer
-        x = self.output_layer(x)
+        # x = self.output_layer(x)
         y = nn.Sigmoid()(x)  # Binary classification
 
         return y
@@ -133,7 +138,3 @@ class DeepFakeDetection(nn.Module):
 
     def get_batch_size(self):
         return const.BATCH_SIZE
-
-    def to_string(self):
-        return "Convolutional_Speaker_Identification_Log_Softmax_Model-epoch_"
-

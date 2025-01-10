@@ -12,8 +12,20 @@ from constants import *
 
 # Load training data
 x_paths, Xfeatures, labels = load_csv_data(TRAIN_CSV)
+x_paths = [os.path.join(WAV2VEC_FOLDER, p) for p in x_paths]
 x_test_paths, X_test_features, test_labels = load_csv_data(TEST_CSV)
+x_test_paths = [os.path.join(WAV2VEC_FOLDER, p) for p in x_test_paths]
 x_validation_paths, X_validation_features, validation_labels = load_csv_data(VALIDATION_CSV)
+x_validation_paths = [os.path.join(WAV2VEC_FOLDER, p) for p in x_validation_paths]
+
+# Compute the mean and standard deviation from the training data
+mean = np.mean(Xfeatures, axis=0)
+std = np.std(Xfeatures, axis=0)
+
+# Normalize the training, test, and validation data
+Xfeatures_normalized = (Xfeatures - mean) / std
+X_test_features_normalized = (X_test_features - mean) / std
+X_validation_features_normalized = (X_validation_features - mean) / std
 
 print('Start training:')
 
@@ -42,7 +54,7 @@ for Epoch in range(epoch):
 
     # Iterating over training data in batches
     for i in tqdm(range(0, len(x_paths), batch_size)):
-        x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_paths], Xfeatures, labels, i, batch_size)  # Create batch tensors
+        x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv(x_paths, Xfeatures_normalized, labels, i, batch_size)  # Create batch tensors
         x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.to(DEVICE), x_features_batch.to(DEVICE), y_batch.to(DEVICE)  # Move tensors to the device
 
         optimizer.zero_grad()  # Zero out gradients from the previous step
@@ -65,7 +77,7 @@ for Epoch in range(epoch):
         all_y_true, all_y_pred = [], []  # Lists to store true and predicted labels
 
         for i in tqdm(range(0, len(x_test_paths), batch_size), desc="Training Progress"):
-            x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv([os.path.join(WAV2VEC_FOLDER, p) for p in x_test_paths], X_test_features, test_labels, i, batch_size)  # Create batch tensors
+            x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv(x_test_paths, X_test_features_normalized, test_labels, i, batch_size)  # Create batch tensors
             x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.to(DEVICE), x_features_batch.to(DEVICE), y_batch.to(DEVICE)  # Move tensors to the device
             y_pred = model(x_wav2vec_batch, x_features_batch).squeeze()  # Forward pass
             val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()  # Accumulate validation loss
@@ -73,8 +85,7 @@ for Epoch in range(epoch):
             all_y_pred.extend(y_pred.squeeze().cpu())  # Collect predicted probabilities
 
     val_loss = val_loss / (len(x_test_paths) // batch_size)
-    binary_y_pred = (np.array(all_y_pred) > 0.5).astype(int)
-    accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), binary_y_pred)
+    accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))
 
     # Log results of the current epoch
     results_df.loc[len(results_df)] = [train_loss, val_loss, accuracy, recall, f1]
@@ -83,7 +94,7 @@ for Epoch in range(epoch):
 
 # Preparing results folder
 now_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")  # Timestamp for unique result folder
-dir_path = TRAINING_DATA_PATH + now_time
+dir_path = TRAINING_DATA_PATH + now_time + learning_rate + DROP_OUT + batch_size
 
 #creating the directories if needed
 os.makedirs(dir_path, exist_ok=True)  # Create directory if it doesn't exist
