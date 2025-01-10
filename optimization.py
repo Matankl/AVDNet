@@ -1,18 +1,14 @@
 import optuna
-from torch.cuda.amp import GradScaler, autocast
-from torch.optim.lr_scheduler import StepLR
-from torch.utils.tensorboard import SummaryWriter
-from constants import *
-from VGG_16_custom import *
-from train_cnn import create_tensors_from_csv, load_csv_data, calculate_metrics
+import os
+from datetime import datetime
 import numpy as np
-
+from tqdm import tqdm
+from VGG_16_custom import DeepFakeDetection
+from data_methods import create_tensors_from_csv, calculate_metrics, load_csv_data
+from constants import *
 
 # Early stopping implementation
 class EarlyStopping:
-    """
-    Early stopping to stop training when validation loss doesn't improve.
-    """
     def __init__(self, patience=5, delta=0):
         self.patience = patience
         self.delta = delta
@@ -31,124 +27,165 @@ class EarlyStopping:
             self.best_loss = val_loss
             self.counter = 0
 
-# Define the Optuna objective function
+
 def objective(trial):
     """
-    Objective function for Optuna to optimize hyperparameters.
+    Optuna objective function for hyperparameter tuning using training and validation sets.
     """
 
-    # Define the hyperparameter search space
-    learning_rate = trial.suggest_loguniform('lr', 1e-5, 1e-2)  # Learning rate
-    batch_size = trial.suggest_categorical('batch_size', [16, 32, 64])  # Batch size
-    dropout = trial.suggest_uniform('dropout', 0.3, 0.7)  # Dropout probability
-    weight_decay = trial.suggest_loguniform('weight_decay', 1e-6, 1e-3)  # Weight decay for regularization
-    step_size = trial.suggest_int('step_size', 5, 20)  # Step size for LR scheduler
-    gamma = trial.suggest_uniform('gamma', 0.1, 0.9)  # Gamma (LR decay factor)
+    # Hyperparameter search space
+    learning_rate = trial.suggest_loguniform("learning_rate", 0.00001, 0.001)
+    batch_size = trial.suggest_categorical("batch_size", [16, 32, 64])
+    dropout = trial.suggest_uniform("dropout", 0.2, 0.8)
 
-    # Initialize the model and apply the dynamic dropout
-    model = DeepFakeDetection(epochs=10, batch_size=batch_size, learning_rate=learning_rate).to(DEVICE)
+    # Print the current trial parameters
+    print(f"Current trial parameters: {trial.params}")
+
+    # Model initialization
+    model = DeepFakeDetection(
+        epochs=10, batch_size=batch_size, learning_rate=learning_rate
+    ).to(DEVICE)
+
+    # Apply dynamic dropout to the model
     for layer in model.children():
         if isinstance(layer, torch.nn.Dropout):
-            layer.p = dropout  # Update dropout dynamically
+            layer.p = dropout
 
-    # Loss function: Binary Cross-Entropy Loss
+    # Loss, optimizer, and scheduler
     criterion = torch.nn.BCELoss()
-
-    # Optimizer: Adam with weight decay (regularization)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-
-    # Learning rate scheduler: StepLR
-    scheduler = StepLR(optimizer, step_size=step_size, gamma=gamma)
-
-    # Mixed precision scaler for faster training
-    scaler = GradScaler()
-
-    # Early stopping
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     early_stopping = EarlyStopping(patience=5)
 
-    # TensorBoard writer for real-time monitoring
-    writer = SummaryWriter(log_dir=f'logs/trial_{trial.number}')
+    # Load training and validation data
+    x_train_paths, X_train_features, train_labels = load_csv_data(TRAIN_CSV)
+    x_train_paths = [os.path.join(WAV2VEC_FOLDER, p) for p in x_train_paths]
+    x_validation_paths, X_validation_features, validation_labels = load_csv_data(VALIDATION_CSV)
+    x_validation_paths = [os.path.join(WAV2VEC_FOLDER, p) for p in x_validation_paths]
 
-    # load the data
-    x_paths, Xfeatures, labels = load_csv_data(INPUT_CSV)
+    # Normalize data
+    mean = np.mean(X_train_features, axis=0)
+    std = np.std(X_train_features, axis=0)
+    X_train_features_normalized = (X_train_features - mean) / std
+    X_validation_features_normalized = (X_validation_features - mean) / std
 
-    # Training and validation
     train_loss, val_loss = 0, 0
-    for epoch in range(10):  # Train for a limited number of epochs during optimization
-        model.train()  # Set the model to training mode
-        train_loss = 0  # Reset training loss
+    for epoch in range(10):  # Limited epochs for optimization
+        model.train()
+        train_loss = 0
+        for i in tqdm(range(0, len(x_train_paths), batch_size)):
+            x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv(
+                x_train_paths, X_train_features_normalized, train_labels, i, batch_size
+            )
+            x_wav2vec_batch, x_features_batch, y_batch = (
+                x_wav2vec_batch.to(DEVICE),
+                x_features_batch.to(DEVICE),
+                y_batch.to(DEVICE),
+            )
 
-        # Training loop
-        for i in range(0, len(x_paths), batch_size):
-            # Load training data in batches
-            x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv(x_paths, Xfeatures, labels, i, batch_size)
-            x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.to(DEVICE), x_features_batch.to(DEVICE), y_batch.to(DEVICE)  # Move data to GPU/CPU
-
-            # Zero the gradient
             optimizer.zero_grad()
-
-            # Forward pass with mixed precision
-            with autocast():
-                y_pred = model(x_wav2vec_batch).squeeze()  # Predict
-                loss = criterion(y_pred, y_batch.float())  # Compute loss
-
-            # Backward pass and optimizer step
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-
-            train_loss += loss.item()  # Accumulate training loss
-
-        # Update learning rate
-        scheduler.step()
+            y_pred = model(x_wav2vec_batch, x_features_batch).squeeze()
+            y_batch = y_batch.view(-1)
+            y_pred = y_pred.squeeze(-1)
+            loss = criterion(y_pred, y_batch.float())
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item()
 
         # Validation phase
-        model.eval()  # Set the model to evaluation mode
-        val_loss = 0  # Reset validation loss
-        all_y_true, all_y_pred = [], []  # To store true and predicted values
-
-        with torch.no_grad():  # Disable gradient computation for validation
-            for i in range(0, len(x_paths), batch_size):
-                # Load validation data in batches
-                x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv(x_paths, labels, i, batch_size)
-                x_wav2vec_batch, x_features_batch, y_batch = x_wav2vec_batch.to(DEVICE), x_features_batch.to(DEVICE), y_batch.to(DEVICE)  # Move data to GPU/CPU
-
-                # Forward pass with mixed precision
-                with autocast():
-                    y_pred = model(x_wav2vec_batch).squeeze()
-                    val_loss += criterion(y_pred, y_batch.float()).item()  # Compute validation loss
-
-                # Collect true and predicted labels for metrics
+        model.eval()
+        val_loss = 0
+        all_y_true, all_y_pred = [], []
+        with torch.no_grad():
+            for i in tqdm(range(0, len(x_validation_paths), batch_size)):
+                x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv(
+                    x_validation_paths,
+                    X_validation_features_normalized,
+                    validation_labels,
+                    i,
+                    batch_size,
+                )
+                x_wav2vec_batch, x_features_batch, y_batch = (
+                    x_wav2vec_batch.to(DEVICE),
+                    x_features_batch.to(DEVICE),
+                    y_batch.to(DEVICE),
+                )
+                y_pred = model(x_wav2vec_batch, x_features_batch).squeeze()
+                val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()
                 all_y_true.extend(y_batch.cpu().numpy())
-                all_y_pred.extend(y_pred.cpu().numpy())
+                all_y_pred.extend(y_pred.squeeze().cpu())
 
         # Compute validation metrics
-        accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))
+        val_loss /= len(x_validation_paths) // batch_size
+        binary_y_pred = (np.array(all_y_pred) > 0.5).astype(int)
+        accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), binary_y_pred)
 
-        # Log metrics to TensorBoard
-        writer.add_scalar('Loss/train', train_loss, epoch)
-        writer.add_scalar('Loss/val', val_loss, epoch)
-        writer.add_scalar('Metrics/accuracy', accuracy, epoch)
-        writer.add_scalar('Metrics/recall', recall, epoch)
-        writer.add_scalar('Metrics/f1', f1, epoch)
-
-        # Print metrics for debugging
-        print(f"Epoch {epoch}: Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}, Accuracy={accuracy:.4f}, Recall={recall:.4f}, F1={f1:.4f}")
+        print(f'Train Loss = {train_loss}, Validation Loss = {val_loss}, Accuracy = {accuracy}, Recall = {recall}, F1 = {f1}')
 
         # Early stopping check
         early_stopping(val_loss)
         if early_stopping.early_stop:
-            print(f"Early stopping at epoch {epoch}")
             break
 
-    writer.close()  # Close TensorBoard writer
-
-    # Return the validation loss for optimization
     return val_loss
 
-# Run the Optuna optimization
-study = optuna.create_study(direction='minimize')  # Minimize validation loss
-study.optimize(objective, n_trials=20)  # Perform X trials
 
-# Print the best hyperparameters
-print("Best hyperparameters:", study.best_params)
+def evaluate_on_test(model, test_csv, mean, std, batch_size):
+    """
+    Evaluate the model on the test set after tuning.
+    """
+    x_test_paths, X_test_features, test_labels = load_csv_data(test_csv)
+    X_test_features_normalized = (X_test_features - mean) / std
+
+    model.eval()
+    test_loss = 0
+    all_y_true, all_y_pred = [], []
+
+    criterion = torch.nn.BCELoss()
+
+    with torch.no_grad():
+        for i in range(0, len(x_test_paths), batch_size):
+            x_wav2vec_batch, x_features_batch, y_batch = create_tensors_from_csv(
+                x_test_paths, X_test_features_normalized, test_labels, i, batch_size
+            )
+            x_wav2vec_batch, x_features_batch, y_batch = (
+                x_wav2vec_batch.to(DEVICE),
+                x_features_batch.to(DEVICE),
+                y_batch.to(DEVICE),
+            )
+            y_pred = model(x_wav2vec_batch, x_features_batch).squeeze()
+            test_loss += criterion(y_pred.squeeze(), y_batch.float()).item()
+            all_y_true.extend(y_batch.cpu().numpy())
+            all_y_pred.extend(y_pred.squeeze().cpu())
+
+    test_loss /= len(x_test_paths) // batch_size
+    binary_y_pred = (np.array(all_y_pred) > 0.5).astype(int)
+    accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), binary_y_pred)
+
+    print(f"Test Loss = {test_loss:.4f}, Accuracy = {accuracy:.4f}, Recall = {recall:.4f}, F1 = {f1:.4f}")
+
+
+# Run Optuna optimization
+if __name__ == "__main__":
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective, n_trials=20)
+
+    # Get the best hyperparameters
+    best_params = study.best_params
+    print("Best hyperparameters:", best_params)
+
+    # Retrain the model with the best parameters on train and validation data
+    best_model = DeepFakeDetection(
+        epochs=10,
+        batch_size=best_params["batch_size"],
+        learning_rate=best_params["learning_rate"],
+    ).to(DEVICE)
+
+    x_train_paths, X_train_features, train_labels = load_csv_data(TRAIN_CSV)
+    x_train_paths = [os.path.join(WAV2VEC_FOLDER, p) for p in x_train_paths]
+
+    # Normalize data
+    mean = np.mean(X_train_features, axis=0)
+    std = np.std(X_train_features, axis=0)
+
+    # Evaluate on test data
+    evaluate_on_test(best_model, TEST_CSV, mean, std, best_params["batch_size"])

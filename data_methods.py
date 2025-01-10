@@ -8,7 +8,7 @@ from constants import *
 # Function to load data paths and labels from a CSV file
 def load_csv_data(csv_path):
     data = pd.read_csv(csv_path)
-    data = data.sample(frac=1).reset_index(drop=True)
+    data = data.sample(frac=0.1).reset_index(drop=True)
     x_paths = data.iloc[:, 1].values  # Extract the paths to wav2vec2 matrices
     labels = data['label'].values.astype(int)  # Extract and cast labels to integers
     Xfeatures = data.iloc[:, 2:-1].values  # Corrected slicing for Xfeatures
