@@ -86,14 +86,14 @@ def make_dataset_csv_of_size_x(csv_paths, output_path, number_of_lines):
     print(f"Dataset created with {len(output_df)} lines and saved to '{output_path}'.")
 
 fake_folders_paths = [
-    r'D:\Database\Audio/DeepFakeProject/fake/OUTETTS Fake audio 4s processed',
-    r'D:\Database\Audio/DeepFakeProject/fake/Tortoise Fake audio 4s processed',
-    r'D:\Database\Audio/DeepFakeProject/fake/XTTS Fake audio 4s processed'
+    r'D:\Database\Audio/DeepFakeProject/fake/OUTETTS Splits',
+    r'D:\Database\Audio/DeepFakeProject/fake/Tortoise Splits',
+    r'D:\Database\Audio/DeepFakeProject/fake/XTTS Splits'
 ]
 
 real_folders_paths = [
-    r'D:\Database\Audio\DeepFakeProject\Real\cv corpus 20 4s processed',
-    r'D:\Database\Audio\DeepFakeProject\Real\Peoples speech 4s processed'
+    r'D:\Database\Audio\DeepFakeProject\Real\cv corpus 20 Splits',
+    r'D:\Database\Audio\DeepFakeProject\Real\Peoples speech Splits'
     ]
 
 total_examples = 27000
@@ -173,7 +173,6 @@ def analyze_label_column(csv_file_path):
         print(f"An error occurred: {e}")
 
 
-# Example usage
 for name in "train_30h.csv", "validation_30h.csv", "test_30h.csv":
     analyze_label_column(name)
 

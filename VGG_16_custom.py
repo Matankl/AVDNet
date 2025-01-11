@@ -5,20 +5,30 @@ The code is based on : https://github.com/a-nagrani/VGGVox/issues/1
 from torch import nn
 import constants as const
 from constants import *
+import torch
+from torch import nn
+from collections import OrderedDict
 
 class DeepFakeDetection(nn.Module):
 
-    def cal_paddind_shape(self, new_shape, old_shape, kernel_size, stride_size):
-        return (stride_size * (new_shape - 1) + kernel_size - old_shape) / 2
+    def __init__(self, batch_size, learning_rate, dense_layers = 3):
 
-    def __init__(self, epochs, batch_size, learning_rate, dense_layers = 3):
-
-        self.epochs = epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
-        self.dense_layers = dense_layers
+        self.numbers_of_dense_layers = dense_layers
+        self.input_size = 4096 + 156  # Starting size after convolutional layers
+        self.output_size = 1  # Final output size
 
         super().__init__()
+
+        assert dense_layers >= 2
+
+        self.layer_sizes = [
+            int(self.input_size - i * (self.input_size - self.output_size) / (dense_layers - 1))
+            for i in range(dense_layers)
+        ]
+        self.dense_layers = self.build_dynamic_sequential()
+
 
         self.conv_2d_1 = nn.Conv2d(1, 96, kernel_size=(7, 7), stride=(1, 1), padding=1)
         self.bn_1 = nn.BatchNorm2d(96)
@@ -42,27 +52,9 @@ class DeepFakeDetection(nn.Module):
         self.drop_1 = nn.Dropout(p=DROP_OUT)
         self.global_avg_pooling_2d = nn.AdaptiveAvgPool2d((1, 1))
 
-        # # Dense Layers
-        # self.dense_layers = nn.ModuleList()  # Flexible list of dense layers
-        # self.dropouts = nn.ModuleList()  # Flexible list of Dropout layers
-        #
-        # input_size = 4096  # Starting size after convolutional layers
-        # output_size = 1  # Final output size
-        #
-        # # Calculate evenly decreasing layer sizes
-        # layer_sizes = [
-        #     int(input_size - i * (input_size - output_size) / (dense_layers - 1))
-        #     for i in range(dense_layers)
-        # ]
-        #
-        # Create dense layers and corresponding dropout layers
-        # for i in range(len(layer_sizes) - 1):
-        #     self.dense_layers.append(nn.Linear(layer_sizes[i], layer_sizes[i + 1]))
-        #     self.dropouts.append(nn.Dropout(p=DROP_OUT))
-        # self.output_layer = nn.Linear(layer_sizes[-1], output_size)
+        self.output_layer = nn.Linear(self.layer_sizes[-1], self.output_size)
 
-        # self.output_layer = nn.Linear(layer_sizes[-1], output_size)
-        self.dense_1 = nn.Linear(4096 + 0, 512)
+        self.dense_1 = nn.Linear(self.input_size, 512)
         self.drop_2 = nn.Dropout(p=DROP_OUT)
 
         self.dense_2 = nn.Linear(512, 1)
@@ -100,7 +92,6 @@ class DeepFakeDetection(nn.Module):
             print(f"After max_pool_2d_3: {x.shape}")  # Debug shape
 
         x = nn.ReLU()(self.conv_2d_6(x))
-        x = self.drop_1(x)
         x = self.global_avg_pooling_2d(x)
         if DEBUGMODE:
             print(f"After conv_2d_6: {x.shape}")  # Debug shape
@@ -109,29 +100,46 @@ class DeepFakeDetection(nn.Module):
         x = torch.flatten(x, 1)  # Correctly flattens to (batch_size, -1)
 
         #append Xfeatures to the vector
-        # x = torch.cat((x, X_Features), dim=1)
+        x = torch.cat((x, X_Features), dim=1)
 
         if DEBUGMODE:
             print(f"After reshape: {x.shape}")
 
         # # Dense Layers
         # for dense_layer, dropout in zip(self.dense_layers, self.dropouts):
-        #     x = nn.ReLU()(dense_layer(x))
         #     x = dropout(x)
+        #     x = nn.ReLU()(dense_layer(x))
 
-        x = nn.ReLU()(self.dense_1(x))
+        x = self.dense_layers(x)
 
-        x = self.drop_2(x)
-        x = self.dense_2(x)
+        # x = self.drop_1(x)
+        # x = nn.ReLU()(self.dense_1(x))
+        # x = self.drop_2(x)
+        # x = self.dense_2(x)
+        # # Final Output Layer
 
-        # Final Output Layer
-        # x = self.output_layer(x)
         y = nn.Sigmoid()(x)  # Binary classification
 
         return y
 
-    def get_epochs(self):
-        return self.epochs
+    def build_dynamic_sequential(self, dropout=0.5):
+        """
+        layer_sizes: e.g. [784, 512, 256, 10]
+        dropout: dropout probability
+        """
+        seq_layers = OrderedDict()
+        for i in range(len(self.layer_sizes) - 1):
+            in_dim = self.layer_sizes[i]
+            out_dim = self.layer_sizes[i + 1]
+
+            # Add a linear layer
+            seq_layers[f"linear_{i}"] = nn.Linear(in_dim, out_dim)
+            # Add ReLU except on the last layer
+            if i < len(self.layer_sizes) - 2:
+                seq_layers[f"relu_{i}"] = nn.ReLU()
+                seq_layers[f"drop_{i}"] = nn.Dropout(p=dropout)
+
+        return nn.Sequential(seq_layers)
 
     def get_learning_rate(self):
         return self.learning_rate

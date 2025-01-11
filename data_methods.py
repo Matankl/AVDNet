@@ -8,7 +8,7 @@ from constants import *
 # Function to load data paths and labels from a CSV file
 def load_csv_data(csv_path):
     data = pd.read_csv(csv_path)
-    data = data.sample(frac=0.1).reset_index(drop=True)
+    data = data.sample(frac=1).reset_index(drop=True)
     x_paths = data.iloc[:, 1].values  # Extract the paths to wav2vec2 matrices
     labels = data['label'].values.astype(int)  # Extract and cast labels to integers
     Xfeatures = data.iloc[:, 2:-1].values  # Corrected slicing for Xfeatures
@@ -38,7 +38,7 @@ def create_tensors_from_csv(x_paths, Xfeatures, labels, start_idx, block_num, ta
 
         # Convert the matrix to a tensor and add channel dimension
         wav2vec_matrix = wav2vec_matrix.clone().detach()
-        x_wav2vec.append(torch.tensor(wav2vec_matrix))  # Directly append tensor (not wrapped in a list)
+        x_wav2vec.append(wav2vec_matrix)  # Directly append tensor (not wrapped in a list)
 
         tensor_vector = torch.tensor(Xfeatures[i], dtype=torch.float).detach()
         x_vectors.append(tensor_vector)
