@@ -303,7 +303,7 @@ if __name__ == "__main__":
     study.optimize(objective, n_trials=10)
 
     #save the results
-    save_all_trials_csv(study, filename="optuna_results.csv")
+    save_all_trials_csv(study, filename="data/results/optuna_results.csv")
 
     # Get the best hyperparameters
     best_params = study.best_params
@@ -314,7 +314,7 @@ if __name__ == "__main__":
     best_val_loss, best_model_sd = best_trial.user_attrs["val_loss"], best_trial.user_attrs["model_sd"]
 
     # save the model to the disk
-    save_best_model(study, "best_deepfake_detection_model.pth")
+    save_best_model(study, "data/models/DeepfakeDetection")
 
     # load the best model with the best parameters
     best_model = DeepFakeDetection(
