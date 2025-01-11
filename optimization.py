@@ -1,5 +1,7 @@
 import copy
 import csv
+import shutil
+from datetime import datetime
 import optuna
 import os
 import numpy as np
@@ -7,6 +9,8 @@ from tqdm import tqdm
 from VGG_16_custom import DeepFakeDetection
 from data_methods import create_tensors_from_csv, calculate_metrics, load_csv_data
 from constants import *
+import signal
+import sys
 
 # Early stopping implementation
 class EarlyStopping:
@@ -35,17 +39,16 @@ def objective(trial):
     """
 
     best_val_f1 = 0.0
-    best_model_sd = None
+    best_model_path = None
     best_val_loss = float('inf')
 
     # Hyperparameter search space
-    learning_rate = trial.suggest_loguniform("learning_rate", 0.00001, 0.01)
+    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
     batch_size = trial.suggest_categorical("batch_size", [16, 32, 64])
-    dropout = trial.suggest_uniform("dropout", 0.2, 0.8)
-    layers = trial.suggest_categorical("dense_layers", [i for i in range(1, 6)])
+    dropout = trial.suggest_float("dropout", 0.2, 0.65)
+    layers = trial.suggest_categorical("dense_layers", [i for i in range(2, 7)])
 
     # Print the current trial parameters
-    print(f"the current run is {trial.number}")
     print(f"Current trial parameters: {trial.params}")
 
     # Model initialization
@@ -63,7 +66,7 @@ def objective(trial):
     # Loss, optimizer, and scheduler
     criterion = torch.nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    early_stopping = EarlyStopping(patience=5)
+    early_stopping = EarlyStopping(patience=10)
 
     # Load training and validation data
     x_train_paths, X_train_features, train_labels = load_csv_data(TRAIN_CSV)
@@ -77,7 +80,7 @@ def objective(trial):
     X_train_features_normalized = (X_train_features - mean) / std
     X_validation_features_normalized = (X_validation_features - mean) / std
 
-    for epoch in tqdm(range(10)):  # Limited epochs for optimization
+    for epoch in tqdm(range(EPOCHS)):  # Limited epochs for optimization
         model.train()
         train_loss = 0
         count_train = 0
@@ -135,9 +138,17 @@ def objective(trial):
 
         # check for best model
         if val_loss < best_val_loss:
+
+            # saving the model in case of an error
+            torch.save(model.state_dict(), BEST_MODEL_PATH)
+            with open(BEST_PARAMS_PATH, "w") as f:
+                f.write(str(trial.params))
+            print(f"New best model saved with val_loss = {val_loss:.4f}")
+
             best_val_loss = val_loss
             best_val_f1 = f1  # Save the F1 from this epoch
-            best_model_sd = copy.deepcopy(model.state_dict())
+            best_model_path = BEST_MODEL_PATH
+
 
         # Early stopping check
         early_stopping(val_loss)
@@ -147,9 +158,9 @@ def objective(trial):
     # Store your final best metrics in user_attrs
     trial.set_user_attr("best_val_loss", best_val_loss)
     trial.set_user_attr("best_val_f1", best_val_f1)
-    trial.set_user_attr("best_model_sd", best_model_sd)
+    trial.set_user_attr("best_model_path", best_model_path)
 
-    return best_val_loss, best_model_sd
+    return best_val_loss
 
 
 def evaluate_on_test(model, test_csv, mean, std, batch_size):
@@ -157,6 +168,7 @@ def evaluate_on_test(model, test_csv, mean, std, batch_size):
     Evaluate the model on the test set after tuning.
     """
     x_test_paths, X_test_features, test_labels = load_csv_data(test_csv)
+    x_test_paths = [os.path.join(WAV2VEC_FOLDER, p) for p in x_test_paths]
     X_test_features_normalized = (X_test_features - mean) / std
 
     model.eval()
@@ -188,37 +200,32 @@ def evaluate_on_test(model, test_csv, mean, std, batch_size):
 
 
 def save_best_model(study, prefix="DeepFakeModel", extension="pth"):
-    """
-    Creates a descriptive filename based on the best trial's hyperparameters and validation loss,
-    then saves the model's state dict and hyperparams to disk.
-    """
     best_trial = study.best_trial
-    best_model_sd = best_trial.user_attrs["best_model_sd"]
+    best_model_path = best_trial.user_attrs["best_model_path"]
     best_val_loss = best_trial.user_attrs["best_val_loss"]
     best_params = best_trial.params
 
-    # Extract parameters with sensible defaults in case they are missing
-    learning_rate = best_params.get("learning_rate", 0.001)
-    batch_size = best_params.get("batch_size", 32)
-    dropout = best_params.get("dropout", 0.5)
-    dense_layers = best_params.get("dense layers", 3)
-
-    # Construct a filename that includes relevant data
+    # Construct a new filename
     model_filename = (
         f"{prefix}_"
-        f"lr={learning_rate}_"
-        f"bs={batch_size}_"
-        f"drop={dropout:.2f}_"
-        f"layers={dense_layers}_"
+        f"lr={best_params.get('learning_rate', 0.001)}_"
+        f"bs={best_params.get('batch_size', 32)}_"
+        f"drop={best_params.get('dropout', 0.5):.2f}_"
+        f"layers={best_params.get('dense_layers', 3)}_"
         f"valloss={best_val_loss:.4f}.{extension}"
     )
 
-    # Save to disk
+    # Load the best model's state dict
+    best_state_dict = torch.load(best_model_path)
+
+    # Save final checkpoint with hyperparams + state_dict
     torch.save({
-        "state_dict": best_model_sd,
+        "state_dict": best_state_dict,
         "hyperparams": best_params
     }, model_filename)
+
     print(f"Best model saved to {model_filename}")
+    return model_filename
 
 
 def load_best_model(model_class, save_path, device="cpu"):
@@ -229,7 +236,7 @@ def load_best_model(model_class, save_path, device="cpu"):
     :return: Instantiated model loaded with the best weights.
     """
     checkpoint = torch.load(save_path, map_location=device)
-    best_model_sd = checkpoint["state_dict"]
+    best_model_path = checkpoint["state_dict"]
     best_params = checkpoint["hyperparams"]
 
     # Instantiate the model with the best hyperparameters:
@@ -240,15 +247,20 @@ def load_best_model(model_class, save_path, device="cpu"):
     ).to(device)
 
     # Load the saved state_dict
-    model.load_state_dict(best_model_sd)
+    model.load_state_dict(best_model_path)
 
     return model
 
 
-def save_all_trials_csv(study, filename="optuna_results.csv"):
+def save_all_trials_csv(study, filename_prefix="optuna_results"):
     """
     Save the hyperparameters and metrics of each trial to a CSV file.
     """
+
+    # Generate the timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = f"{filename_prefix}_{timestamp}.csv"
+
     # Define the header with all the columns we want
     # Adapt column names for your hyperparameters (e.g., dropout vs. drop, etc.)
     header = [
@@ -275,7 +287,7 @@ def save_all_trials_csv(study, filename="optuna_results.csv"):
             lr = trial.params.get("learning_rate", None)
             bs = trial.params.get("batch_size", None)
             drop = trial.params.get("dropout", None)
-            layers = trial.params.get("dense layers", None)
+            layers = trial.params.get("dense_layers", None)
 
             # Extract user_attrs from the objective
             val_loss = trial.user_attrs.get("best_val_loss", None)
@@ -296,14 +308,37 @@ def save_all_trials_csv(study, filename="optuna_results.csv"):
     print(f"All trial results have been saved to '{filename}'.")
 
 
+def save_checkpoint_on_exit(signum, frame):
+    print("Signal received. Saving study and exiting gracefully...")
+    if study and study.best_trial:
+        torch.save(study.best_trial.user_attrs["best_model_path"], BEST_MODEL_PATH)
+        with open(BEST_PARAMS_PATH, "w") as f:
+            f.write(str(study.best_trial.params))
+    sys.exit(0)
+
 # Run Optuna optimization
 if __name__ == "__main__":
+    # Directories and paths
+    os.makedirs("checkpoints", exist_ok=True)
+    BEST_MODEL_PATH = "checkpoints/best_model.pth"
+    BEST_PARAMS_PATH = "checkpoints/best_params.json"
+    STUDY_DB_PATH = "sqlite:///checkpoints/optuna_study.db"
+
+
+    #setting up signals for error recovery
+    signal.signal(signal.SIGINT, save_checkpoint_on_exit)
+    signal.signal(signal.SIGTERM, save_checkpoint_on_exit)
+
     # run the optuna study
-    study = optuna.create_study(direction="minimize")
-    study.optimize(objective, n_trials=10)
+    study = optuna.create_study(storage=STUDY_DB_PATH,
+                                study_name="speech_classification",
+                                direction="minimize",
+                                load_if_exists=True)
+    study.optimize(objective, n_trials=TRIALS, show_progress_bar=True)
 
     #save the results
-    save_all_trials_csv(study, filename="data/results/optuna_results.csv")
+    save_all_trials_csv(study, filename_prefix="data/results/optuna_results")
+    final_checkpoint_path = save_best_model(study)
 
     # Get the best hyperparameters
     best_params = study.best_params
@@ -311,10 +346,7 @@ if __name__ == "__main__":
 
     # get the best model
     best_trial = study.best_trial
-    best_val_loss, best_model_sd = best_trial.user_attrs["val_loss"], best_trial.user_attrs["model_sd"]
-
-    # save the model to the disk
-    save_best_model(study, "data/models/DeepfakeDetection")
+    best_val_loss, best_model_path = best_trial.user_attrs["best_val_loss"], best_trial.user_attrs["best_model_path"]
 
     # load the best model with the best parameters
     best_model = DeepFakeDetection(
@@ -323,8 +355,10 @@ if __name__ == "__main__":
         dense_layers=best_params["dense_layers"]
     ).to(DEVICE)
 
-    # load his weights
-    best_model.load_state_dict(best_model_sd, )
+    # Load the state dictionary from the final checkpoint
+    checkpoint = torch.load(final_checkpoint_path)
+    best_model.load_state_dict(checkpoint["state_dict"])  # Load the weights
+
 
     # computing norm and std on the training data to use on the test data
     x_train_paths, X_train_features, train_labels = load_csv_data(TRAIN_CSV)
