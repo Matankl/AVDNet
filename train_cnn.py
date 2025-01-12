@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import openpyxl
 from tqdm import tqdm
 matplotlib.use('Agg')
+# import onnx # to save the model
 # folders import
 from data_methods import *
 from constants import *
@@ -115,3 +116,71 @@ def plot_loss(data):
 
 # Plot loss curves and save as an image
 plot_loss(results_df)
+
+if SAVE_MODEL:
+    # Create an instance of your model
+    model = DeepFakeDetection(epochs=10, batch_size=32, learning_rate=0.001)
+
+    # Set the model to evaluation mode
+    model.eval()
+
+    # Example input for the model (adjust the dimensions according to your input shape)
+    dummy_input = (torch.randn(1, 1, 128, 128), torch.randn(1, 10))  # Adjust based on your input sizes
+
+    # Save model to ONNX format
+    onnx_model_path = "deepfake_detection.onnx"
+    torch.onnx.export(
+        model,  # Model
+        dummy_input,  # Example input tuple
+        onnx_model_path,  # Output file
+        export_params=True,  # Store trained parameter weights
+        opset_version=11,  # ONNX version
+        input_names=["X_Wav2Vec", "X_Features"],  # Input names
+        output_names=["output"],  # Output name
+        dynamic_axes={"X_Wav2Vec": {0: "batch_size"}, "X_Features": {0: "batch_size"}}  # Dynamic axes
+    )
+    print(f"Model saved to {onnx_model_path}")
+
+""" 
+instuctions for trancfering the model:
+pip onnx
+    pip install onnx onnx-tf tensorflow
+
+
+then convert from onnx model to tensorflow model:
+
+from onnx_tf.backend import prepare
+import onnx
+
+# Load the ONNX model
+onnx_model_path = "deepfake_detection.onnx"
+onnx_model = onnx.load(onnx_model_path)
+
+# Convert to TensorFlow
+tf_rep = prepare(onnx_model)
+
+# Export the TensorFlow model
+tf_model_path = "deepfake_detection_tf"
+tf_rep.export_graph(tf_model_path)
+print(f"Model converted to TensorFlow and saved to {tf_model_path}")
+
+
+
+
+this is the load and use:
+
+import tensorflow as tf
+
+# Load the TensorFlow model
+tf_model = tf.saved_model.load("deepfake_detection_tf")
+
+# Example input (ensure the input format matches the saved model)
+import numpy as np
+X_Wav2Vec = np.random.randn(1, 1, 128, 128).astype(np.float32)  # Adjust shape
+X_Features = np.random.randn(1, 10).astype(np.float32)
+
+# Use the model
+output = tf_model(X_Wav2Vec=X_Wav2Vec, X_Features=X_Features)
+print("Model output:", output)
+
+"""
