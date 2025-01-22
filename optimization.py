@@ -216,11 +216,11 @@ def save_best_model(study, prefix="DeepFakeModel", extension="pth"):
     )
 
     # Load the best model's state dict
-    best_state_dict = torch.load(best_model_path)
+    checkpoint = torch.load(best_model_path)
 
     # Save final checkpoint with hyperparams + state_dict
     torch.save({
-        "state_dict": best_state_dict,
+        "state_dict": checkpoint["state_dict"],
         "hyperparams": best_params
     }, model_filename)
 
