@@ -11,7 +11,7 @@ from collections import OrderedDict
 
 class DeepFakeDetection(nn.Module):
 
-    def __init__(self, batch_size, learning_rate, dense_layers = 3):
+    def __init__(self, batch_size, learning_rate, mean, std, dense_layers = 3):
 
         self.batch_size = batch_size
         self.learning_rate = learning_rate
@@ -19,15 +19,12 @@ class DeepFakeDetection(nn.Module):
         self.input_size = 4096 + 156  # Starting size after convolutional layers
         self.output_size = 1  # Final output size
 
-        super().__init__()
-
+        self.mean_t = torch.tensor(mean, dtype=torch.float32)
+        std_t = torch.tensor(std, dtype=torch.float32)
+        self.var_t = std_t ** 2
         assert dense_layers >= 2
 
-        self.layer_sizes = [
-            int(self.input_size - i * (self.input_size - self.output_size) / (dense_layers - 1))
-            for i in range(dense_layers)
-        ]
-        self.dense_layers = self.build_dynamic_sequential()
+        super().__init__()
 
 
         self.conv_2d_1 = nn.Conv2d(1, 96, kernel_size=(7, 7), stride=(1, 1), padding=1)
@@ -52,12 +49,22 @@ class DeepFakeDetection(nn.Module):
         self.drop_1 = nn.Dropout(p=DROP_OUT)
         self.global_avg_pooling_2d = nn.AdaptiveAvgPool2d((1, 1))
 
-        self.output_layer = nn.Linear(self.layer_sizes[-1], self.output_size)
+        # Create BatchNorm
+        self.features_norm = nn.BatchNorm1d(
+            num_features=self.mean_t.shape[0],
+            affine=False,  # no learnable gamma/beta
+            track_running_stats=True  # so we can store your stats in running_mean/var
+        )
+        # Set precomputed mean and variance
+        with torch.no_grad():
+            self.features_norm.running_mean.copy_(self.mean_t)
+            self.features_norm.running_var.copy_(self.var_t)
 
-        self.dense_1 = nn.Linear(self.input_size, 512)
-        self.drop_2 = nn.Dropout(p=DROP_OUT)
-
-        self.dense_2 = nn.Linear(512, 1)
+        self.layer_sizes = [
+            int(self.input_size - i * (self.input_size - self.output_size) / (dense_layers - 1))
+            for i in range(dense_layers)
+        ]
+        self.dense_layers = self.build_dynamic_sequential()
 
     def forward(self, X_Wav2Vec, X_Features):
 
@@ -99,24 +106,17 @@ class DeepFakeDetection(nn.Module):
         #flatning the conv to be a vector for the dense layer
         x = torch.flatten(x, 1)  # Correctly flattens to (batch_size, -1)
 
+        #normalizing the incoming Features vector
+        X_Features_Normalized = self.features_norm(X_Features)
+
         #append Xfeatures to the vector
-        x = torch.cat((x, X_Features), dim=1)
+        x = torch.cat((x, X_Features_Normalized), dim=1)
 
         if DEBUGMODE:
             print(f"After reshape: {x.shape}")
 
-        # # Dense Layers
-        # for dense_layer, dropout in zip(self.dense_layers, self.dropouts):
-        #     x = dropout(x)
-        #     x = nn.ReLU()(dense_layer(x))
-
+        # Dense layers of the VGG
         x = self.dense_layers(x)
-
-        # x = self.drop_1(x)
-        # x = nn.ReLU()(self.dense_1(x))
-        # x = self.drop_2(x)
-        # x = self.dense_2(x)
-        # # Final Output Layer
 
         y = nn.Sigmoid()(x)  # Binary classification
 
