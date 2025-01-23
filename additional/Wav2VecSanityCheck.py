@@ -3,7 +3,7 @@ import numpy as np
 import os
 
 # Path to the CSV file
-CSV_FILE = "validation_30h.csv"
+CSV_FILE = "../data/Inputs/validation_30h.csv"
 matrices_folder = "D:\Database\Audio\DeepFakeProject\Wav2vecMatrices"
 
 # Define the correct shape
