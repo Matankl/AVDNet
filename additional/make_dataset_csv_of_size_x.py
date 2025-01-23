@@ -79,7 +79,7 @@ def make_dataset_csv_of_size_x(csv_paths, output_path, number_of_lines):
     # Check if we have enough lines
     if len(output_df) < number_of_lines:
         print("The total number of lines available is insufficient to meet the required number of lines!")
-        return
+        # return
 
     # Save the resulting DataFrame to the output file
     output_df.to_csv(output_path, index=False)
@@ -96,8 +96,9 @@ real_folders_paths = [
     r'D:\Database\Audio\DeepFakeProject\Real\Peoples speech Splits'
     ]
 
-total_examples = 27000
-ratio_fake, ratio_real = 0.5, 0.5
+hours = 70
+total_examples = hours * 900
+ratio_fake, ratio_real = 0.44, 0.56
 ratio_train, ratio_test, ratio_validation = 0.8, 0.1, 0.1
 
 number_train_fake = int(total_examples * ratio_fake * ratio_train)
@@ -116,24 +117,27 @@ print(f"The number of validation test : {number_validation_real}")
 
 print(f"Total : {number_train_fake + number_train_real + number_test_fake + number_test_real + number_validation_fake + number_validation_real}")
 
+train_output_csv = f'../data/Inputs/train_{hours}h.csv'
+validation_output_csv = f'../data/Inputs/validation_{hours}h.csv'
+test_output_csv = f'../data/Inputs/test_{hours}h.csv'
 
 validation_paths = [os.path.join(path, "Validation.csv") for path in fake_folders_paths]
 train_paths = [os.path.join(path, "Train.csv") for path in fake_folders_paths]
 test_paths = [os.path.join(path, "Test.csv") for path in fake_folders_paths]
 
 #fake data
-make_dataset_csv_of_size_x(train_paths, 'train_30h.csv', number_train_fake)
-make_dataset_csv_of_size_x(validation_paths, 'validation_30h.csv', number_test_fake)
-make_dataset_csv_of_size_x(test_paths, 'test_30h.csv', number_validation_fake)
+make_dataset_csv_of_size_x(train_paths, train_output_csv, number_train_fake)
+make_dataset_csv_of_size_x(validation_paths, validation_output_csv , number_test_fake)
+make_dataset_csv_of_size_x(test_paths, test_output_csv, number_validation_fake)
 
 validation_paths = [os.path.join(path, "Validation.csv") for path in real_folders_paths]
 train_paths = [os.path.join(path, "Train.csv") for path in real_folders_paths]
 test_paths = [os.path.join(path, "Test.csv") for path in real_folders_paths]
 
 #real data
-make_dataset_csv_of_size_x(train_paths, 'train_30h.csv', number_train_real)
-make_dataset_csv_of_size_x(validation_paths, 'validation_30h.csv', number_test_real)
-make_dataset_csv_of_size_x(test_paths, 'test_30h.csv', number_validation_real)
+make_dataset_csv_of_size_x(train_paths, train_output_csv, number_train_real)
+make_dataset_csv_of_size_x(validation_paths, validation_output_csv, number_test_real)
+make_dataset_csv_of_size_x(test_paths, test_output_csv, number_validation_real)
 
 def analyze_label_column(csv_file_path):
     try:
@@ -173,7 +177,8 @@ def analyze_label_column(csv_file_path):
         print(f"An error occurred: {e}")
 
 
-for name in "train_30h.csv", "validation_30h.csv", "test_30h.csv":
+for name in train_output_csv, validation_output_csv, test_output_csv:
+    print(f"checking {name}")
     analyze_label_column(name)
 
 
