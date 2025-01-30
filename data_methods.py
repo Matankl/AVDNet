@@ -1,18 +1,47 @@
+import os
+
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, recall_score, f1_score
-# python files
 from constants import *
+from torch.utils.data import Dataset, DataLoader
 
 
-# Function to load data paths and labels from a CSV file
-def load_csv_data(csv_path):
-    data = pd.read_csv(csv_path)
-    data = data.sample(frac=1).reset_index(drop=True)
-    x_paths = data.iloc[:, 1].values  # Extract the paths to wav2vec2 matrices
-    labels = data['label'].values.astype(int)  # Extract and cast labels to integers
-    Xfeatures = data.iloc[:, 2:-1].values  # Corrected slicing for Xfeatures
-    return x_paths, Xfeatures, labels
+
+# Define Dataset for Training & Validation
+class Wav2VecDataset(Dataset):
+    def __init__(self, csv_path, wav2vec_folder):
+        self.data = pd.read_csv(csv_path)
+        self.wav2vec_folder = wav2vec_folder
+
+        # Extract paths, features, and labels
+        self.x_paths = self.data.iloc[:, 1].values  # wav2vec2 matrix paths
+        self.Xfeatures = self.data.iloc[:, 2:-1].values.astype(np.float32)  # Numeric features
+        self.labels = self.data['label'].values.astype(int)  # Labels
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        x_path = os.path.join(self.wav2vec_folder, self.x_paths[idx])
+
+        # Load wav2vec matrix
+        wav2vec_matrix = np.load(x_path, allow_pickle=True)
+        wav2vec_tensor = wav2vec_matrix.clone().detach()
+
+        # Load additional features
+        x_features = torch.tensor(self.Xfeatures[idx], dtype=torch.float32)
+
+        # Load label
+        label = torch.tensor(self.labels[idx], dtype=torch.float32)  # BCELoss needs float labels
+
+        return wav2vec_tensor, x_features, label
+
+# Function to create DataLoader
+def get_dataloader(csv_path, wav2vec_folder, pin_memory=False, batch_size=32, shuffle=True, num_workers=4):
+    dataset = Wav2VecDataset(csv_path, wav2vec_folder)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
+    return dataloader
 
 # Function to create tensors for training/validation batches from CSV data
 def create_tensors_from_csv(x_paths, Xfeatures, labels, start_idx, block_num, target_shape=None):
