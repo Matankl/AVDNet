@@ -1,17 +1,22 @@
 import torch
+from sympy import false
 
 # Model
 WEIGHTS_DIRECTORY = "data/model"
 
 #CSV PATHS
-TRAIN_CSV = "additional/train_30h.csv"
-TEST_CSV = "additional/test_30h.csv"
-VALIDATION_CSV = "additional/validation_30h.csv"
+HOURS = 70
+INPUTS_PATH = "data/Inputs"
+TRAIN_CSV = f"{INPUTS_PATH}/train_{HOURS}h.csv"
+TEST_CSV = f"{INPUTS_PATH}/test_{HOURS}h.csv"
+VALIDATION_CSV = f"{INPUTS_PATH}/validation_{HOURS}h.csv"
 WAV2VEC_FOLDER = 'D:\Database\Audio\DeepFakeProject\Wav2vecMatrices' # The folder containing the Wav2Vec matrices
 
 #OPTUNA PARAMETERS
-EPOCHS = 20
-TRIALS = 25
+LOAD_TRAINING = True
+EPOCHS = 50
+TRIALS = 20
+PATIENCE = 5
 
 DEBUGMODE = False
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
