@@ -47,6 +47,8 @@ def error_analysis(csv_path, model, mean, std, batch_size, device, save_failed_p
             )
 
             # Model prediction
+            print(x_wav2vec_batch.shape, x_features_batch.shape)
+            print(x_wav2vec_batch, x_features_batch)
             y_pred = model(x_wav2vec_batch, x_features_batch).squeeze()
             all_y_true.extend(y_batch.cpu().numpy())
             all_y_pred.extend(y_pred.cpu().numpy())
@@ -90,15 +92,17 @@ def error_analysis(csv_path, model, mean, std, batch_size, device, save_failed_p
 
 # Example usage
 if __name__ == "__main__":
-    # Replace with your model and parameters
-    trained_model = ...  # Load your trained model
-    csv_path = "data/test_data.csv"
-    batch_size = 32
+    trained_model = r"C:\Users\parde\PycharmProjects\The-model\checkpoints\tmp_model_trial_4.pth" # Load your trained model
+    model = torch.load(trained_model, map_location=DEVICE)
+
+
+    csv_path = r"/data/Inputs/test_30h.csv"
+    batch_size = 1
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Load mean and std from training data
-    mean = np.load("data/mean.npy")
-    std = np.load("data/std.npy")
+    mean = 0.5
+    std = 0.5
 
     # Run error analysis
-    error_analysis(csv_path, trained_model, mean, std, batch_size, device)
+    error_analysis(csv_path, model, mean, std, batch_size, device)

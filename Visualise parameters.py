@@ -69,10 +69,10 @@ def plot_all_pairs_heatmaps(df, param_list, metric_column="best_val_loss", bins=
     plt.show()
 
 
-# --------------------- USAGE EXAMPLE ---------------------
+# --------------------- USAGE  ---------------------
 if __name__ == "__main__":
 
-    csv_path = ""
+    csv_path = r"data/results/optuna_results_2025-01-12_00-12-57.csv"
     # Suppose you have a CSV "optuna_results.csv" with columns like:
     # trial_number, learning_rate, batch_size, dropout, dense_layers, best_val_loss, best_val_f1, state
     df = pd.read_csv(csv_path)
@@ -84,4 +84,4 @@ if __name__ == "__main__":
     metric_column = "best_val_loss"  # or "best_val_f1"
 
     # Plot a global grid of heatmaps for each pair of hyperparameters
-    plot_all_pairs_heatmaps(df, param_list, metric_column=metric_column, bins=5)
+    plot_all_pairs_heatmaps(df, param_list, metric_column=metric_column, bins=20)
