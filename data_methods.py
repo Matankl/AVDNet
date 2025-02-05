@@ -1,8 +1,10 @@
 import os
-
+import random
 import numpy as np
 import pandas as pd
+import torchaudio
 from sklearn.metrics import accuracy_score, recall_score, f1_score
+import torchaudio.transforms as T
 from constants import *
 from torch.utils.data import Dataset, DataLoader
 
@@ -37,11 +39,142 @@ class Wav2VecDataset(Dataset):
 
         return wav2vec_tensor, x_features, label
 
+
+def augment_audio(waveform, sample_rate):
+    # Randomly apply augmentations
+    augmentations = []
+    if torch.rand(1) > 0.8:
+        rand = 0.5 + torch.rand(1).item()
+        waveform = T.Vol(rand)(waveform)  # Random Volume Change
+        augmentations.append(f"volume{rand}")
+    if torch.rand(1) > 0.8:
+        rand = 50 + int(torch.rand(1).item() * 10)
+        waveform = T.TimeMasking(time_mask_param=60)(waveform)  # SpecAugment Time Masking
+    if torch.rand(1) > 0.8:
+        rand = 5 + int(torch.rand(1).item() * 5)
+        waveform = T.FrequencyMasking(freq_mask_param=8)(waveform)  # SpecAugment Frequency Masking
+    if torch.rand(1) > 0.8:
+        waveform = waveform + 0.005 * torch.randn_like(waveform)  # Mild Noise Injection
+
+    return waveform, augmentations
+
+
+class RawAudioDatasetLoader(Dataset):
+    def __init__(self, root_dir, dataset_type="Train"):
+        """
+        Args:
+            root_dir (str): Path to the 'database' directory containing 'Real' and 'Fake' subfolders.
+            dataset_type (str): One of 'Train', 'Test', or 'Validation' (determines which CSVs to load).
+        """
+        self.file_list = []
+        self.labels = []
+        self.augment_prob = 0.35
+        self.sample_rate = 16000
+
+        # Recursively search for dataset_type.csv in all subdirectories
+        for class_name in ["Real", "Fake"]:  # Labels inferred from folder names
+            class_label = 0 if class_name == "Real" else 1
+            class_path = os.path.join(root_dir, class_name)
+
+            if not os.path.exists(class_path):
+                continue  # Skip if folder doesn't exist
+
+            for source_folder in os.listdir(class_path):
+                source_path = os.path.join(class_path, source_folder)
+                if os.path.isdir(source_path):  # Ensure it's a directory
+                    csv_path = os.path.join(source_path, f"{dataset_type}.csv")
+                    if os.path.exists(csv_path):
+                        # Read CSV and extract filenames and labels
+                        df = pd.read_csv(csv_path)
+                        # Assumes first column is the filename (with .wav extension)
+                        # and the last column is the label.
+                        filenames = df.iloc[:, 0].tolist()
+                        labels = df.iloc[:, -1].tolist() if len(df.columns) > 1 else [class_label] * len(df)
+                        for i, filename in enumerate(filenames):
+                            print(filename)
+                            # Since the audio is in the same directory as the CSV, use source_path directly.
+                            self.file_list.append((source_path, filename))
+                            self.labels.append(labels[i])
+
+    def __len__(self):
+        return len(self.file_list)
+
+    def __getitem__(self, idx):
+        audio_dir, filename = self.file_list[idx]
+        label = torch.tensor(self.labels[idx], dtype=torch.float32)
+
+        # Decide whether to apply augmentation.
+        use_augmented = random.random() < self.augment_prob
+
+        # Full path to the audio file.
+        audio_path = os.path.join(audio_dir, f"{filename}.wav")
+        waveform, sr = torchaudio.load(audio_path)
+
+        if use_augmented:
+            waveform, _ = augment_audio(waveform, sr)
+
+        # Extract LFCC features from the waveform.
+        lfcc_input = extract_lfcc_torchaudio(waveform, sr)
+        # For fine-tuning Wav2Vec, use the raw waveform.
+        wav2vec_input = waveform
+
+        return lfcc_input, wav2vec_input, label
+
+
+def extract_lfcc_torchaudio(waveform, sample_rate=16000, n_lfcc=80, n_filter=128, log_lf=False):
+    """
+    Extract LFCC features from waveform using torchaudio.
+
+    Args:
+        waveform (torch.Tensor): Audio tensor of shape (1, samples)
+        sample_rate (int): Sample rate of audio (default: 16kHz)
+        n_lfcc (int): Number of LFCC coefficients (default: 40)
+        n_filter (int): Number of linear filters (default: 128)
+        log_lf (bool): Whether to apply log scale on LFCC (default: False)
+
+    Returns:
+        torch.Tensor: LFCC features of shape (1, n_lfcc, time_steps)
+    """
+    lfcc_transform = T.LFCC(
+        sample_rate=sample_rate,
+        n_lfcc=n_lfcc,
+        n_filter=n_filter,
+        log_lf=log_lf
+    )
+
+    lfcc_features = lfcc_transform(waveform)  # (1, n_lfcc, time_steps)
+
+    return lfcc_features
+
+
+
+    #COMMENT
+    # bundle = pipelines.WAV2VEC2_ASR_BASE_960H
+    # bundle = pipelines.WAV2VEC2_XLSR_53 #1024 features but more suited for multi lingual
+    # model = bundle.get_model()
+
 # Function to create DataLoader
-def get_dataloader(csv_path, wav2vec_folder, pin_memory=False, batch_size=32, shuffle=True, num_workers=4):
-    dataset = Wav2VecDataset(csv_path, wav2vec_folder)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
+def get_dataloader(dataset_type, root_dir, pin_memory=False, batch_size=32, shuffle=True, num_workers=4, transform=None):
+    """
+    Creates a DataLoader for the given CSV (defining the dataset split) and data root directory.
+
+    Args:
+        csv_path (str): Path to the CSV file containing the list of files (e.g., "Train.csv" or "Validation.csv").
+        root_dir (str): Path to the root directory containing the data (e.g., the folder with 'Real' and 'Fake' subdirectories).
+        pin_memory (bool): Whether to pin memory (useful for GPUs).
+        batch_size (int): Batch size.
+        shuffle (bool): Whether to shuffle the data.
+        num_workers (int): Number of worker processes.
+        transform (callable, optional): A function/transform to apply to the input features (for example, normalization).
+
+    Returns:
+        DataLoader: The DataLoader instance for the dataset.
+    """
+    dataset = RawAudioDatasetLoader(root_dir=root_dir, dataset_type=dataset_type)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
+                            pin_memory=pin_memory)
     return dataloader
+
 
 # Function to create tensors for training/validation batches from CSV data
 def create_tensors_from_csv(x_paths, Xfeatures, labels, start_idx, block_num, target_shape=None):

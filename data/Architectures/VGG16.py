@@ -11,7 +11,7 @@ from collections import OrderedDict
 
 class DeepFakeDetection(nn.Module):
 
-    def __init__(self, batch_size, learning_rate, mean, std, dense_layers = 3):
+    def __init__(self, batch_size, learning_rate, mean = None, std = None, dense_layers = 3):
 
         self.batch_size = batch_size
         self.learning_rate = learning_rate
@@ -19,9 +19,11 @@ class DeepFakeDetection(nn.Module):
         self.input_size = 4096 + 156  # Starting size after convolutional layers
         self.output_size = 1  # Final output size
 
-        self.mean_t = torch.tensor(mean, dtype=torch.float32)
-        std_t = torch.tensor(std, dtype=torch.float32)
-        self.var_t = std_t ** 2
+        # setting up the mean and std
+        if mean and std:
+            self.mean_t = torch.tensor(mean, dtype=torch.float32)
+            std_t = torch.tensor(std, dtype=torch.float32)
+            self.var_t = std_t ** 2
         assert dense_layers >= 2
 
         super().__init__()
