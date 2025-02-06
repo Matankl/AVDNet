@@ -5,6 +5,7 @@ import pandas as pd
 import torchaudio
 from sklearn.metrics import accuracy_score, recall_score, f1_score
 import torchaudio.transforms as T
+import torch.nn.functional as F
 from constants import *
 from torch.utils.data import Dataset, DataLoader
 
@@ -69,6 +70,7 @@ class RawAudioDatasetLoader(Dataset):
         self.data = []
         self.augment_prob = 0.35
         self.sample_rate = 16000
+        self.expected_length = self.sample_rate * 4 # 4 seconds
 
         # Recursively search for dataset_type.csv in all subdirectories
         for class_name in ["Real", "Fake"]:  # Labels inferred from folder names
@@ -118,6 +120,13 @@ class RawAudioDatasetLoader(Dataset):
 
         if use_augmented:
             waveform, _ = augment_audio(waveform, sr)
+
+        # Ensure exact length using padding or truncation
+        if waveform.shape[1] < self.expected_length:
+            pad_size = self.expected_length - waveform.shape[1]
+            waveform = F.pad(waveform, (0, pad_size))  # Pad with zeros
+        elif waveform.shape[1] > self.expected_length:
+            waveform = waveform[:, :self.expected_length]  # Truncate
 
         # Extract LFCC features from the waveform.
         lfcc_input = extract_lfcc_torchaudio(waveform, sr)
