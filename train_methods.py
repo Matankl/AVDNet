@@ -24,7 +24,7 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, tr
         model.train()
         train_loss = 0
         count_train = 0
-        for input_1, input_2, y_batch in tqdm(train_loader):
+        for input_1, input_2, y_batch in train_loader:
             input_1, input_2, y_batch = (
                 input_1.to(DEVICE),
                 input_2.to(DEVICE),
@@ -71,7 +71,7 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, tr
             # Copy current model’s state_dict
             temp_model_path = f"checkpoints/tmp_model_trial_{trial.number}.pth"
             trial.set_user_attr("best_model_path", temp_model_path)
-            torch.save(model, temp_model_path)
+            torch.save({'model_state_dict': model.state_dict()}, temp_model_path)
 
         # Early stopping check
         early_stopping(val_loss)
