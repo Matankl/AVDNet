@@ -76,6 +76,6 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, tr
         # Early stopping check
         early_stopping(val_loss)
         if early_stopping.early_stop:
-            break
+            return best_trial_loss, val_loss
 
     return best_trial_loss, val_loss

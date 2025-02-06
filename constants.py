@@ -15,7 +15,8 @@ DATASET_FOLDER = "/media/hp4ran/TOSHIBA EXT/Database/Audio/DeepFakeProject"
 LOAD_TRAINING = False
 EPOCHS = 50
 TRIALS = 60
-PATIENCE = 5
+PATIENCE = 2
+PARTIAL_TRAINING = 0.001
 
 DEBUGMODE = False
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

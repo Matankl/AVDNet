@@ -42,9 +42,9 @@ def objective(trial):
     best_trial_loss = float('inf')
 
     # Hyperparameter search space
-    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
+    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-1, log=True)
     batch_size = trial.suggest_categorical("batch_size",[4, 8, 16])
-    dropout = trial.suggest_float("dropout", 0.2, 0.65)
+    dropout = trial.suggest_float("dropout", 0.1, 0.70)
     dense_layers = trial.suggest_int("dense_layers", 2, 7)  # total number of dense layers in classifier
     dense_initial_dim = trial.suggest_int("dense_initial_dim", 128, 2048, step=64)
 
@@ -62,13 +62,13 @@ def objective(trial):
     # backbone = trial.suggest_categorical("backbone", ["vgg", "resnet"])
 
     # Optimizer weight decay
-    weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+    weight_decay = trial.suggest_float("weight_decay", 1e-7, 1e-2, log=True)
 
     # Print the current trial parameters
     print(f"Current trial parameters: {trial.params}")
 
     # Loading the data
-    fraction_to_test = 0.01
+    fraction_to_test = PARTIAL_TRAINING
     train_loader = get_dataloader("Train", DATASET_FOLDER, batch_size=batch_size, num_workers=2, fraction=fraction_to_test)
     val_loader = get_dataloader("Validation", DATASET_FOLDER, batch_size=batch_size, num_workers=2, fraction = fraction_to_test)
 
