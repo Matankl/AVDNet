@@ -61,7 +61,7 @@ def augment_audio(waveform, sample_rate):
 
 
 class RawAudioDatasetLoader(Dataset):
-    def __init__(self, root_dir, dataset_type="Train"):
+    def __init__(self, root_dir, dataset_type="Train", fraction = False):
         """
         Args:
             root_dir (str): Path to the 'database' directory containing 'Real' and 'Fake' subfolders.
@@ -99,6 +99,8 @@ class RawAudioDatasetLoader(Dataset):
 
         # Shuffle all (path, filename, label) entries together
         random.shuffle(self.data)
+        if fraction:
+            self.data = self.data[:int(len(self.data) * fraction)]
 
         # Unpack shuffled data into separate lists
         self.file_list = [(entry[0], entry[1]) for entry in self.data]  # (source_path, filename)
@@ -169,7 +171,7 @@ def extract_lfcc_torchaudio(waveform, sample_rate=16000, n_lfcc=80, n_filter=128
     # model = bundle.get_model()
 
 # Function to create DataLoader
-def get_dataloader(dataset_type, root_dir, pin_memory=False, batch_size=32, shuffle=True, num_workers=4, transform=None):
+def get_dataloader(dataset_type, root_dir, pin_memory=False, batch_size=32, shuffle=True, num_workers=4, fraction =None):
     """
     Creates a DataLoader for the given CSV (defining the dataset split) and data root directory.
 
@@ -180,12 +182,11 @@ def get_dataloader(dataset_type, root_dir, pin_memory=False, batch_size=32, shuf
         batch_size (int): Batch size.
         shuffle (bool): Whether to shuffle the data.
         num_workers (int): Number of worker processes.
-        transform (callable, optional): A function/transform to apply to the input features (for example, normalization).
 
     Returns:
         DataLoader: The DataLoader instance for the dataset.
     """
-    dataset = RawAudioDatasetLoader(root_dir=root_dir, dataset_type=dataset_type)
+    dataset = RawAudioDatasetLoader(root_dir=root_dir, dataset_type=dataset_type, fraction = fraction)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
                             pin_memory=pin_memory)
     return dataloader
