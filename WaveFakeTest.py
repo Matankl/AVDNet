@@ -1,6 +1,6 @@
 import os
 import torch
-from optimization import evaluate_on_test
+from optimization_old import evaluate_on_test
 
 if __name__ == '__main__':
     test_folder = r"D:\Database\Audio\DeepFakeProject\Fake\Raw generated Data\fake database\generated_audio\4 sec Processed"

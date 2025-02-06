@@ -1,5 +1,5 @@
 # Directories and paths
-from optimization import evaluate_on_test
+from optimization_old import evaluate_on_test
 import os
 import numpy as np
 from tqdm import tqdm

@@ -4,10 +4,14 @@ import optuna
 import os
 import numpy as np
 from tqdm import tqdm
+from constants import *
+
+from data.Architectures.FullArchitecture import DeepFakeDetector
 from data.Architectures.VGG16 import DeepFakeDetection
 from data.Architectures.VGG16_FeaturesOnly import FeaturesOnly
 from data_methods import create_tensors_from_csv, calculate_metrics, get_dataloader
 from constants import *
+from train_methods import train_model
 
 
 # Early stopping implementation
@@ -36,104 +40,92 @@ def objective(trial):
     Optuna objective function for hyperparameter tuning using training and validation sets.
     """
     best_trial_loss = float('inf')
+
     # Hyperparameter search space
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-    batch_size = trial.suggest_categorical("batch_size", [8, 16, 32])
+    batch_size = trial.suggest_categorical("batch_size",[2])# [4, 8, 16])
     dropout = trial.suggest_float("dropout", 0.2, 0.65)
-    layers = trial.suggest_categorical("dense_layers", [i for i in range(2, 8)])
+    dense_layers = trial.suggest_int("dense_layers", 2, 7)  # total number of dense layers in classifier
+    dense_initial_dim = trial.suggest_int("dense_initial_dim", 128, 2048, step=64)
+
+    # Transformer fusion parameters
+    transformer_layers = trial.suggest_int("transformer_layers", 1, 4)
+    transformer_nhead = trial.suggest_int("transformer_nhead", 4, 8)
+    head_dim = trial.suggest_int("head_dim", 16, 64, step=16)  # or choose an appropriate range
+    d_model = head_dim * transformer_nhead
+
+    # Pretrained module freezing parameters
+    freeze_cnn_layers = trial.suggest_int("freeze_cnn_layers", 5, 15)
+    freeze_encoder_layers = trial.suggest_int("freeze_encoder_layers", 0, 8)
+
+    # Backbone selection: choose between 'vgg' and 'resnet'
+    # backbone = trial.suggest_categorical("backbone", ["vgg", "resnet"])
+
+    # Optimizer weight decay
+    weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
 
     # Print the current trial parameters
     print(f"Current trial parameters: {trial.params}")
 
-    train_loader = get_dataloader(TRAIN_CSV, WAV2VEC_FOLDER, batch_size=batch_size, num_workers=2)
-    val_loader = get_dataloader(VALIDATION_CSV, WAV2VEC_FOLDER, batch_size=batch_size, num_workers=2)
+    # Loading the data
+    train_loader = get_dataloader("Train", DATASET_FOLDER, batch_size=batch_size, num_workers=2)
+    val_loader = get_dataloader("Validation", DATASET_FOLDER, batch_size=batch_size, num_workers=2)
 
-    # Normalize Features
-    mean = np.mean(train_loader.dataset.Xfeatures, axis=0)
-    std = np.std(train_loader.dataset.Xfeatures, axis=0)
+    # Normalize Features (if applicable)
+    # For example, if your dataset has a field 'Xfeatures'
+    # mean = np.mean(train_loader.dataset.Xfeatures, axis=0)
+    # std = np.std(train_loader.dataset.Xfeatures, axis=0)
 
-    # Model initialization
-    model = DeepFakeDetection(
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        dense_layers= layers,
-        mean=mean,
-        std=std
+    # Build dense classifier hidden dimensions based on a linear decrease.
+    # For instance, if dense_layers=3 and dense_initial_dim=512, you might have dimensions: [256, 128]
+    dense_hidden_dims = []
+    current_dim = dense_initial_dim
+    for _ in range(dense_layers - 1):
+        next_dim = current_dim // 2
+        dense_hidden_dims.append(next_dim)
+        current_dim = next_dim
+
+    # Model initialization with tunable parameters.
+    model = DeepFakeDetector(
+        backbone="vgg",
+        freeze_cnn=True,
+        freeze_cnn_layers=freeze_cnn_layers,
+        freeze_wav2vec=True,
+        freeze_feature_extractor=True,
+        freeze_encoder_layers=freeze_encoder_layers,
+        d_model=d_model,
+        nhead=transformer_nhead,
+        num_layers=transformer_layers,
+        dense_hidden_dims=dense_hidden_dims
     ).to(DEVICE)
 
-
-    # Apply dynamic dropout to the model
+    # Apply dynamic dropout to all dropout variants in the model.
     for name, module in model.named_modules():
-        if isinstance(module, torch.nn.Dropout):
+        if isinstance(module, (torch.nn.Dropout, torch.nn.Dropout2d, torch.nn.Dropout3d)):
             module.p = dropout
 
-    # Loss, optimizer, and scheduler
-    criterion = torch.nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    # Loss, optimizer, and early stopping
+    criterion = torch.nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     early_stopping = EarlyStopping(patience=PATIENCE)
 
-    for epoch in tqdm(range(EPOCHS)):  # Limited epochs for optimization
-        model.train()
-        train_loss = 0
-        count_train = 0
-        for wav2vec_batch, x_features_batch, y_batch in train_loader:
-            wav2vec_batch, x_features_batch, y_batch = (
-                wav2vec_batch.to(DEVICE),
-                x_features_batch.to(DEVICE),
-                y_batch.to(DEVICE)
-            )
-            optimizer.zero_grad()
+    print("Starting to train:")
+    # Train the model
+    best_trial_loss, val_loss = train_model(
+        best_trial_loss,
+        criterion,
+        early_stopping,
+        model,
+        optimizer,
+        train_loader,
+        trial,
+        val_loader
+    )
 
-            y_pred = model(wav2vec_batch, x_features_batch).squeeze()
-            y_batch = y_batch.view(-1)
-            y_pred = y_pred.squeeze(-1)
-            loss = criterion(y_pred, y_batch.float())
-            loss.backward()
-            optimizer.step()
-            train_loss += loss.detach().item()
-
-            count_train += 1
-
-        train_loss = train_loss / count_train  # Calculate average training loss
-
-        # Validation phase
-        model.eval()
-        val_loss = 0
-        all_y_true, all_y_pred = [], []
-        with torch.no_grad():
-            for wav2vec_batch, x_features_batch, y_batch in val_loader:
-
-                wav2vec_batch, x_features_batch, y_batch = (
-                    wav2vec_batch.to(DEVICE),
-                    x_features_batch.to(DEVICE),
-                    y_batch.to(DEVICE)
-                )
-                y_pred = model(wav2vec_batch, x_features_batch).squeeze()
-                val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()
-                all_y_true.extend(y_batch.cpu().numpy())
-                all_y_pred.extend(y_pred.squeeze().cpu())
-
-        # Compute validation metrics
-        val_loss /= len(val_loader)
-        accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))
-        print(f'\nEpoch {epoch} : Train Loss = {train_loss}, Validation Loss = {val_loss}, Accuracy = {accuracy}, Recall = {recall}, F1 = {f1}')
-
-        if val_loss < best_trial_loss:
-            best_trial_loss = val_loss
-            # Copy current model’s state_dict
-            temp_model_path = f"checkpoints/tmp_model_trial_{trial.number}.pth"
-            trial.set_user_attr("best_model_path", temp_model_path)
-            torch.save(model, temp_model_path)
-
-        # Early stopping check
-        early_stopping(val_loss)
-        if early_stopping.early_stop:
-            break
-
-    # After finishing the epochs for this trial:
+    # Store the best validation loss for the trial
     trial.set_user_attr("best_val_loss", best_trial_loss)
 
-    return best_trial_loss
+    return val_loss
 
 
 def evaluate_on_test(model, test_csv, batch_size):
@@ -159,6 +151,8 @@ def evaluate_on_test(model, test_csv, batch_size):
                 y_pred = model(x_paths_batch, x_features_batch).squeeze()
             elif isinstance(model, FeaturesOnly):
                 y_pred = model(x_features_batch).squeeze()
+            elif isinstance(model, DeepFakeDetector):
+                y_pred = model(x_paths_batch, x_features_batch).squeeze()
 
             # Compute loss
             try:
@@ -182,7 +176,6 @@ def evaluate_on_test(model, test_csv, batch_size):
 
     print(f"Test Loss = {test_loss:.4f}, Accuracy = {accuracy:.4f}, Recall = {recall:.4f}, F1 = {f1:.4f}")
     return accuracy, recall, f1
-
 
 
 def save_best_model(study, prefix="DeepFakeModel", extension="pth"):
@@ -316,6 +309,8 @@ if __name__ == "__main__":
     BEST_MODEL_PATH = "checkpoints/best_model.pth"
     BEST_PARAMS_PATH = "checkpoints/best_params.json"
     STUDY_DB_PATH = "sqlite:///checkpoints/optuna_study.db"
+    if not LOAD_TRAINING:
+        STUDY_DB_PATH = None
 
 
     # run the optuna study
@@ -336,8 +331,7 @@ if __name__ == "__main__":
 
     # load the best model with the best parameters
     loaded_model = torch.load(study.user_attrs["best_model_path"])
-    # loaded_model = torch.load("FeaturesOnly_lr=0.004223516168172755_bs=32_drop=0.45_layers=4_valloss=0.1802.pth")
 
     # Evaluate on test data
     evaluate_on_test(loaded_model, TEST_CSV, best_params["batch_size"])
-    # evaluate_on_test(loaded_model, TEST_CSV, 32)
+

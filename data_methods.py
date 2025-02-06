@@ -66,8 +66,7 @@ class RawAudioDatasetLoader(Dataset):
             root_dir (str): Path to the 'database' directory containing 'Real' and 'Fake' subfolders.
             dataset_type (str): One of 'Train', 'Test', or 'Validation' (determines which CSVs to load).
         """
-        self.file_list = []
-        self.labels = []
+        self.data = []
         self.augment_prob = 0.35
         self.sample_rate = 16000
 
@@ -91,10 +90,17 @@ class RawAudioDatasetLoader(Dataset):
                         filenames = df.iloc[:, 0].tolist()
                         labels = df.iloc[:, -1].tolist() if len(df.columns) > 1 else [class_label] * len(df)
                         for i, filename in enumerate(filenames):
-                            print(filename)
                             # Since the audio is in the same directory as the CSV, use source_path directly.
-                            self.file_list.append((source_path, filename))
-                            self.labels.append(labels[i])
+
+                            if os.path.exists(os.path.join(source_path, dataset_type, f"{filename}")):
+                                self.data.append((os.path.join(source_path, dataset_type), filename, labels[i]))
+
+        # Shuffle all (path, filename, label) entries together
+        random.shuffle(self.data)
+
+        # Unpack shuffled data into separate lists
+        self.file_list = [(entry[0], entry[1]) for entry in self.data]  # (source_path, filename)
+        self.labels = [entry[2] for entry in self.data]
 
     def __len__(self):
         return len(self.file_list)
@@ -107,8 +113,8 @@ class RawAudioDatasetLoader(Dataset):
         use_augmented = random.random() < self.augment_prob
 
         # Full path to the audio file.
-        audio_path = os.path.join(audio_dir, f"{filename}.wav")
-        waveform, sr = torchaudio.load(audio_path)
+        audio_path = os.path.join(audio_dir, f"{filename}")
+        waveform, sr = torchaudio.load(audio_path, format="wav")
 
         if use_augmented:
             waveform, _ = augment_audio(waveform, sr)

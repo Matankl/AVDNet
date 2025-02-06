@@ -19,7 +19,12 @@ class VGG16FeatureExtractor(nn.Module):
         """
         super(VGG16FeatureExtractor, self).__init__()
         vgg16 = models.vgg16_bn(pretrained=True)
-        self.features = vgg16.features  # convolutional part
+
+        # Modify first convolution layer to accept 1-channel input
+        vgg16.features[0] = nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1)
+
+        #keeping only the convolutions (cutting the dense)
+        self.features = vgg16.features
 
         if freeze:
             if freeze_vgg_layers is None:
@@ -55,6 +60,8 @@ class ResNetFeatureExtractor(nn.Module):
         """
         super(ResNetFeatureExtractor, self).__init__()
         resnet = getattr(models, model_name)(pretrained=True)
+
+        resnet.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         # Build a sequential model that stops before the average pool and fc layers.
         self.features = nn.Sequential(
             resnet.conv1,  # typically outputs 64 channels
@@ -66,6 +73,8 @@ class ResNetFeatureExtractor(nn.Module):
             resnet.layer3,  # for resnet50: 1024
             resnet.layer4  # for resnet50: 2048
         )
+
+        # 🔹 Modify first layer to accept 1-channel input
 
         if freeze:
             if freeze_resnet_layers is None:
@@ -141,6 +150,7 @@ class FusionTransformer(nn.Module):
         self.cnn_proj = nn.Linear(cnn_in_channels, d_model)
         self.wav2vec_proj = nn.Linear(wav2vec_in_dim, d_model)
         self.norm = nn.LayerNorm(d_model)
+        self.dropout = nn.Dropout(p=dropout)
 
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
@@ -261,7 +271,8 @@ class DeepFakeDetector(nn.Module):
             Tensor of shape [B, 1] (logit for binary classification).
         """
         cnn_feat = self.cnn_extractor(image)  # shape depends on backbone
-        wav2vec_feat = self.wav2vec_extractor(audio)  # [B, T, 1024]
+        audio = audio.squeeze(1)  # Removes the channel dimension
+        wav2vec_feat = self.wav2vec_extractor(audio)  # [B, T]
         fused_feature = self.fusion(cnn_feat, wav2vec_feat)  # [B, d_model]
         output = self.classifier(fused_feature)  # [B, 1]
         return output
