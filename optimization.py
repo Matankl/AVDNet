@@ -43,7 +43,7 @@ def objective(trial):
 
     # Hyperparameter search space
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-2, log=True)
-    batch_size = trial.suggest_categorical("batch_size",[2])# [4, 8, 16])
+    batch_size = trial.suggest_categorical("batch_size",[4, 8, 16])
     dropout = trial.suggest_float("dropout", 0.2, 0.65)
     dense_layers = trial.suggest_int("dense_layers", 2, 7)  # total number of dense layers in classifier
     dense_initial_dim = trial.suggest_int("dense_initial_dim", 128, 2048, step=64)
@@ -68,8 +68,9 @@ def objective(trial):
     print(f"Current trial parameters: {trial.params}")
 
     # Loading the data
-    train_loader = get_dataloader("Train", DATASET_FOLDER, batch_size=batch_size, num_workers=2)
-    val_loader = get_dataloader("Validation", DATASET_FOLDER, batch_size=batch_size, num_workers=2)
+    fraction_to_test = 0.01
+    train_loader = get_dataloader("Train", DATASET_FOLDER, batch_size=batch_size, num_workers=2, fraction=fraction_to_test)
+    val_loader = get_dataloader("Validation", DATASET_FOLDER, batch_size=batch_size, num_workers=2, fraction = fraction_to_test)
 
     # Normalize Features (if applicable)
     # For example, if your dataset has a field 'Xfeatures'
@@ -199,7 +200,7 @@ def save_best_model(study, prefix="DeepFakeModel", extension="pth"):
     saved_model = torch.load(best_model_pth)
 
     # Save final checkpoint with hyperparams + state_dict
-    torch.save(saved_model, model_filename)
+    torch.save({'model_state_dict': saved_model.state_dict()}, model_filename)
 
     print(f"Best model saved to {model_filename}")
     return model_filename
@@ -311,7 +312,6 @@ if __name__ == "__main__":
     STUDY_DB_PATH = "sqlite:///checkpoints/optuna_study.db"
     if not LOAD_TRAINING:
         STUDY_DB_PATH = None
-
 
     # run the optuna study
     study = optuna.create_study(storage=STUDY_DB_PATH,
