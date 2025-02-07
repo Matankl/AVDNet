@@ -24,7 +24,7 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, tr
         model.train()
         train_loss = 0
         count_train = 0
-        for input_1, input_2, y_batch in train_loader:
+        for input_1, input_2, y_batch in tqdm(train_loader):
             input_1, input_2, y_batch = (
                 input_1.to(DEVICE),
                 input_2.to(DEVICE),
@@ -36,13 +36,19 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, tr
             y_batch = y_batch.view(-1)
             y_pred = y_pred.squeeze(-1)
             loss = criterion(y_pred, y_batch.float())
+
+            # skipping a specific batch if numerical instability
+            if torch.isnan(loss) or torch.isinf(loss):
+                print("Warning: NaN/Inf detected in loss. Skipping batch.")
+                continue  # Skip this batch
+
             loss.backward()
             optimizer.step()
             train_loss += loss.detach().item()
 
             count_train += 1
 
-        train_loss = train_loss / count_train  # Calculate average training loss
+        train_loss = train_loss / (count_train + 1e-10)  # Calculate average training loss
 
         # Validation phase
         model.eval()
@@ -76,6 +82,6 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, tr
         # Early stopping check
         early_stopping(val_loss)
         if early_stopping.early_stop:
-            return best_trial_loss, val_loss
+            return best_trial_loss, val_loss, f1
 
-    return best_trial_loss, val_loss
+    return best_trial_loss, val_loss, f1

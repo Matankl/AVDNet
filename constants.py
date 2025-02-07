@@ -10,13 +10,13 @@ TRAIN_CSV = f"{INPUTS_PATH}/train_{HOURS}h.csv"
 TEST_CSV = f"{INPUTS_PATH}/test_{HOURS}h.csv"
 VALIDATION_CSV = f"{INPUTS_PATH}/validation_{HOURS}h.csv"
 WAV2VEC_FOLDER = 'D:\Database\Audio\DeepFakeProject\Wav2vecMatrices' # The folder containing the Wav2Vec matrices
-DATASET_FOLDER = "/media/hp4ran/TOSHIBA EXT/Database/Audio/DeepFakeProject"
+DATASET_FOLDER = "/home/hp4ran/DeepFakeProject"
 #OPTUNA PARAMETERS
-LOAD_TRAINING = False
+LOAD_TRAINING = None
 EPOCHS = 50
-TRIALS = 60
-PATIENCE = 2
-PARTIAL_TRAINING = 0.001
+TRIALS = 20
+PATIENCE = 3
+PARTIAL_TRAINING = 1
 
 DEBUGMODE = False
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -3,8 +3,6 @@ from datetime import datetime
 import optuna
 import os
 import numpy as np
-from tqdm import tqdm
-from constants import *
 
 from data.Architectures.FullArchitecture import DeepFakeDetector
 from data.Architectures.VGG16 import DeepFakeDetection
@@ -16,7 +14,7 @@ from train_methods import train_model
 
 # Early stopping implementation
 class EarlyStopping:
-    def __init__(self, patience=5, delta=0):
+    def __init__(self, patience=5, delta=0.000001):
         self.patience = patience
         self.delta = delta
         self.best_loss = None
@@ -42,8 +40,8 @@ def objective(trial):
     best_trial_loss = float('inf')
 
     # Hyperparameter search space
-    learning_rate = trial.suggest_float("learning_rate", 1e-5, 1e-1, log=True)
-    batch_size = trial.suggest_categorical("batch_size",[4, 8, 16])
+    learning_rate = trial.suggest_float("learning_rate", 1e-7, 1e-2, log=True)
+    batch_size = trial.suggest_categorical("batch_size",[8, 16, 32])
     dropout = trial.suggest_float("dropout", 0.1, 0.70)
     dense_layers = trial.suggest_int("dense_layers", 2, 7)  # total number of dense layers in classifier
     dense_initial_dim = trial.suggest_int("dense_initial_dim", 128, 2048, step=64)
@@ -71,11 +69,6 @@ def objective(trial):
     fraction_to_test = PARTIAL_TRAINING
     train_loader = get_dataloader("Train", DATASET_FOLDER, batch_size=batch_size, num_workers=2, fraction=fraction_to_test)
     val_loader = get_dataloader("Validation", DATASET_FOLDER, batch_size=batch_size, num_workers=2, fraction = fraction_to_test)
-
-    # Normalize Features (if applicable)
-    # For example, if your dataset has a field 'Xfeatures'
-    # mean = np.mean(train_loader.dataset.Xfeatures, axis=0)
-    # std = np.std(train_loader.dataset.Xfeatures, axis=0)
 
     # Build dense classifier hidden dimensions based on a linear decrease.
     # For instance, if dense_layers=3 and dense_initial_dim=512, you might have dimensions: [256, 128]
@@ -107,12 +100,13 @@ def objective(trial):
 
     # Loss, optimizer, and early stopping
     criterion = torch.nn.BCEWithLogitsLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    optimizer = setup_optimizer(model, learning_rate, weight_decay)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     early_stopping = EarlyStopping(patience=PATIENCE)
 
     print("Starting to train:")
     # Train the model
-    best_trial_loss, val_loss = train_model(
+    best_trial_loss, val_loss, f1 = train_model(
         best_trial_loss,
         criterion,
         early_stopping,
@@ -126,7 +120,25 @@ def objective(trial):
     # Store the best validation loss for the trial
     trial.set_user_attr("best_val_loss", best_trial_loss)
 
-    return val_loss
+    return best_trial_loss, val_loss, f1
+
+
+def setup_optimizer(model, learning_rate, weight_decay):
+    decay_params = []
+    no_decay_params = []
+    for name, param in model.named_parameters():
+        if param.requires_grad:  # Ignore frozen layers
+            if "bn" in name or "bias" in name:  # Exclude BatchNorm & bias terms
+                no_decay_params.append(param)
+            else:
+                decay_params.append(param)
+    # Define optimizer with separate parameter groups
+    optimizer = torch.optim.Adam([
+        {'params': decay_params, 'weight_decay': weight_decay},  # Apply weight decay
+        {'params': no_decay_params, 'weight_decay': 0.0}  # No weight decay for BatchNorm & biases
+    ], lr=learning_rate)
+
+    return optimizer
 
 
 def evaluate_on_test(model, test_csv, batch_size):
@@ -181,7 +193,10 @@ def evaluate_on_test(model, test_csv, batch_size):
 
 def save_best_model(study, prefix="DeepFakeModel", extension="pth"):
 
-    best_trial = study.best_trial
+    if study._is_multi_objective():
+        best_trial = study.best_trials[0]
+    else:
+        best_trial = study.best_trial
     best_model_pth = best_trial.user_attrs["best_model_path"]
     best_val_loss = best_trial.user_attrs["best_val_loss"]
     params = best_trial.params
@@ -196,11 +211,17 @@ def save_best_model(study, prefix="DeepFakeModel", extension="pth"):
         f"valloss={best_val_loss:.4f}.{extension}"
     )
 
+
     # Load the best model's state dict
     saved_model = torch.load(best_model_pth)
 
-    # Save final checkpoint with hyperparams + state_dict
-    torch.save({'model_state_dict': saved_model.state_dict()}, model_filename)
+    if isinstance(saved_model, dict):
+        model_state_dict = saved_model.get("model_state_dict", saved_model)  # Extract state_dict if it's inside a dict
+    else:
+        model_state_dict = saved_model.state_dict()  # Normal PyTorch model case
+
+    # Save final checkpoint
+    torch.save({'model_state_dict': model_state_dict}, model_filename)
 
     print(f"Best model saved to {model_filename}")
     return model_filename
@@ -253,6 +274,8 @@ def save_all_trials_csv(study, filename_prefix="optuna_results"):
     ]
 
     # Open the CSV file for writing
+    if not os.path.exists("data/results"):
+        os.mkdir("data/results")
     with open(filename, mode="w", newline="") as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(header)
@@ -316,7 +339,7 @@ if __name__ == "__main__":
     # run the optuna study
     study = optuna.create_study(storage=STUDY_DB_PATH,
                                 study_name="speech_classification",
-                                direction="minimize",
+                                directions=["minimize", "minimize", "maximize"],
                                 load_if_exists=LOAD_TRAINING)
 
     study.optimize(objective, n_trials=TRIALS, show_progress_bar=True, callbacks=[save_best_model_callback])
@@ -326,12 +349,24 @@ if __name__ == "__main__":
     path_to_best_model = save_best_model(study)
 
     # Get the best hyperparameters
-    best_params = study.best_params
-    print("Best hyperparameters:", best_params)
+    # Print best trials (Pareto front) along with their hyperparameters
+    print("\nBest Trials (Pareto front) with Hyperparameters:")
+    for trial in study.best_trials:
+        print(f"Trial {trial.number}:")
+        print(f"  Best Loss       = {trial.values[0]:.6f}")
+        print(f"  Last Epoch Loss = {trial.values[1]:.6f}")
+        print(f"  F1-score        = {trial.values[2]:.6f}")
+        print("  Hyperparameters:")
+        for key, value in trial.params.items():
+            print(f"    {key}: {value}")
+        print("-" * 50)  # Separator for better readability
+
+    # best_params = study.best_params
+    # print("Best hyperparameters:", best_params)
 
     # load the best model with the best parameters
     loaded_model = torch.load(study.user_attrs["best_model_path"])
 
     # Evaluate on test data
-    evaluate_on_test(loaded_model, TEST_CSV, best_params["batch_size"])
+    # evaluate_on_test(loaded_model, TEST_CSV, best_params["batch_size"])
 

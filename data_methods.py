@@ -45,15 +45,15 @@ def augment_audio(waveform, sample_rate):
     # Randomly apply augmentations
     augmentations = []
     if torch.rand(1) > 0.8:
-        rand = 0.5 + torch.rand(1).item()
+        rand = (torch.rand(1).item() * 1)
         waveform = T.Vol(rand)(waveform)  # Random Volume Change
         augmentations.append(f"volume{rand}")
     if torch.rand(1) > 0.8:
-        rand = 50 + int(torch.rand(1).item() * 10)
-        waveform = T.TimeMasking(time_mask_param=60)(waveform)  # SpecAugment Time Masking
+        rand = 35 + int(torch.rand(1).item() * 10)
+        waveform = T.TimeMasking(time_mask_param=rand)(waveform)  # SpecAugment Time Masking
     if torch.rand(1) > 0.8:
-        rand = 5 + int(torch.rand(1).item() * 5)
-        waveform = T.FrequencyMasking(freq_mask_param=8)(waveform)  # SpecAugment Frequency Masking
+        rand = 2 + int(torch.rand(1).item() * 5)
+        waveform = T.FrequencyMasking(freq_mask_param=rand)(waveform)  # SpecAugment Frequency Masking
     if torch.rand(1) > 0.8:
         waveform = waveform + 0.005 * torch.randn_like(waveform)  # Mild Noise Injection
 
@@ -68,9 +68,10 @@ class RawAudioDatasetLoader(Dataset):
             dataset_type (str): One of 'Train', 'Test', or 'Validation' (determines which CSVs to load).
         """
         self.data = []
-        self.augment_prob = 0.35
+        self.augment_prob = 0.20
         self.sample_rate = 16000
         self.expected_length = self.sample_rate * 4 # 4 seconds
+        self.dataset_type = dataset_type
 
         # Recursively search for dataset_type.csv in all subdirectories
         for class_name in ["Real", "Fake"]:  # Labels inferred from folder names
@@ -120,7 +121,7 @@ class RawAudioDatasetLoader(Dataset):
         audio_path = os.path.join(audio_dir, f"{filename}")
         waveform, sr = torchaudio.load(audio_path, format="wav")
 
-        if use_augmented:
+        if use_augmented and self.dataset_type == "Train":
             waveform, _ = augment_audio(waveform, sr)
 
         # Ensure exact length using padding or truncation

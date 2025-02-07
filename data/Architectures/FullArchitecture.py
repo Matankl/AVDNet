@@ -260,6 +260,8 @@ class DeepFakeDetector(nn.Module):
                                         d_model=d_model,
                                         nhead=nhead,
                                         num_layers=num_layers)
+
+        self.bn = nn.BatchNorm1d(d_model)
         self.classifier = DenseClassifier(input_dim=d_model, hidden_dims=dense_hidden_dims)
 
     def forward(self, image, audio):
@@ -274,6 +276,7 @@ class DeepFakeDetector(nn.Module):
         audio = audio.squeeze(1)  # Removes the channel dimension
         wav2vec_feat = self.wav2vec_extractor(audio)  # [B, T]
         fused_feature = self.fusion(cnn_feat, wav2vec_feat)  # [B, d_model]
+        fused_feature = self.bn(fused_feature)
         output = self.classifier(fused_feature)  # [B, 1]
         return output
 
