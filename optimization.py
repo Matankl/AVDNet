@@ -3,27 +3,35 @@ from datetime import datetime
 import optuna
 import os
 import numpy as np
-
 from data.Architectures.FullArchitecture import DeepFakeDetector
 from data.Architectures.VGG16 import DeepFakeDetection
 from data.Architectures.VGG16_FeaturesOnly import FeaturesOnly
 from data_methods import create_tensors_from_csv, calculate_metrics, get_dataloader
 from constants import *
-from train_methods import train_model
+from train_methods import train_model, save_model, load_model
 
 
 # Early stopping implementation
 class EarlyStopping:
-    def __init__(self, patience=5, delta=0.000001):
+    def __init__(self, patience=5, delta=0.000001, exp_threshold = 10000):
         self.patience = patience
         self.delta = delta
         self.best_loss = None
         self.counter = 0
         self.early_stop = False
+        self.high_threshold = exp_threshold
 
     def __call__(self, val_loss):
-        if self.best_loss is None:
+        if self.best_loss is None: # if the loss is not yet has been instantiated
             self.best_loss = val_loss
+
+        if torch.isnan(torch.tensor(val_loss)) or torch.isinf(torch.tensor(val_loss)):  # if the loss exploded/have an issue
+            self.early_stop = True
+
+        elif val_loss >= self.high_threshold:
+            self.early_stop = True
+
+
         elif val_loss > self.best_loss - self.delta:
             self.counter += 1
             if self.counter >= self.patience:
@@ -141,13 +149,16 @@ def setup_optimizer(model, learning_rate, weight_decay):
     return optimizer
 
 
-def evaluate_on_test(model, test_csv, batch_size):
+def evaluate_on_test(model, test_csv, batch_size=None):
     """
     Evaluate the model on the test set after tuning.
     """
 
     # Create Test DataLoader
-    test_loader = get_dataloader(test_csv, WAV2VEC_FOLDER, batch_size=batch_size, num_workers=2)
+    if type(model) == DeepFakeDetection:
+        test_loader = get_dataloader(test_csv, WAV2VEC_FOLDER, batch_size=batch_size, num_workers=2)
+    elif type(model) == DeepFakeDetector:
+        test_loader = get_dataloader("Validation", DATASET_FOLDER, batch_size=batch_size, num_workers=2)
 
     # Testing Loop with DataLoader
     model.eval()
@@ -201,54 +212,54 @@ def save_best_model(study, prefix="DeepFakeModel", extension="pth"):
     best_val_loss = best_trial.user_attrs["best_val_loss"]
     params = best_trial.params
 
+    saved_model = load_model(best_model_pth)
+
     # Construct a new filename
     model_filename = (
         f"{prefix}_"
-        f"lr={params.get('learning_rate', 0.001)}_"
+        f"lr={params.get('learning_rate', 0.001):.5f}_"
         f"bs={params.get('batch_size', 32)}_"
         f"drop={params.get('dropout', 0.5):.2f}_"
         f"layers={params.get('dense_layers', 3)}_"
         f"valloss={best_val_loss:.4f}.{extension}"
     )
 
-
-    # Load the best model's state dict
-    saved_model = torch.load(best_model_pth)
-
-    if isinstance(saved_model, dict):
-        model_state_dict = saved_model.get("model_state_dict", saved_model)  # Extract state_dict if it's inside a dict
-    else:
-        model_state_dict = saved_model.state_dict()  # Normal PyTorch model case
-
     # Save final checkpoint
-    torch.save({'model_state_dict': model_state_dict}, model_filename)
+    save_model(saved_model, model_filename)
 
     print(f"Best model saved to {model_filename}")
     return model_filename
 
 
-def load_best_model(model_class, save_path, device="cpu"):
-    """
-    :param model_class: The class definition for DeepFakeDetection or similar.
-    :param save_path: Path to the saved .pth file.
-    :param device: "cpu" or "cuda"
-    :return: Instantiated model loaded with the best weights.
-    """
-    checkpoint = torch.load(save_path, map_location=device)
-    best_model_path = checkpoint["state_dict"]
-    best_params = checkpoint["hyperparams"]
+def log_result(trial, filename="optuna_trials.csv"):
+    """Logs all trial results into a CSV file for easy tracking."""
 
-    # Instantiate the model with the best hyperparameters:
-    model = model_class(
-        batch_size=best_params["batch_size"],
-        learning_rate=best_params["learning_rate"],
-        dense_layers=best_params["dense_layers"]  # or default
-    ).to(device)
+    # Get the trial results
+    trial_dict = trial.params  # Hyperparameters
+    trial_dict["trial_number"] = trial.number  # Trial number
 
-    # Load the saved state_dict
-    model.load_state_dict(best_model_path)
+    # Check if the trial is multi-objective
+    if hasattr(trial, "values") and isinstance(trial.values, tuple):
+        # Multi-objective: Store multiple objective values
+        for i, value in enumerate(trial.values):
+            trial_dict[f"value_{i}"] = value
+    else:
+        # Single-objective: Store a single value
+        trial_dict["value"] = trial.value
 
-    return model
+            # Check if file exists to write headers
+    file_exists = os.path.isfile(filename)
+
+    # Append trial results to the CSV file
+    with open(filename, mode="a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=trial_dict.keys())
+
+        # Write headers only if the file is new
+        if not file_exists:
+            writer.writeheader()
+
+        # Write the trial data
+        writer.writerow(trial_dict)
 
 
 def save_all_trials_csv(study, filename_prefix="optuna_results"):
@@ -281,6 +292,9 @@ def save_all_trials_csv(study, filename_prefix="optuna_results"):
         writer.writerow(header)
 
         for trial in study.trials:  # iterate over all trials
+
+            log_result(trial)
+
             # If you only want completed trials, do:
             # if trial.state == optuna.trial.TrialState.COMPLETE:
 
@@ -365,8 +379,8 @@ if __name__ == "__main__":
     # print("Best hyperparameters:", best_params)
 
     # load the best model with the best parameters
-    loaded_model = torch.load(study.user_attrs["best_model_path"])
+    loaded_model = load_model(path_to_best_model)
 
     # Evaluate on test data
-    # evaluate_on_test(loaded_model, TEST_CSV, best_params["batch_size"])
+    evaluate_on_test(loaded_model, TEST_CSV)
 

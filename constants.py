@@ -12,7 +12,7 @@ VALIDATION_CSV = f"{INPUTS_PATH}/validation_{HOURS}h.csv"
 WAV2VEC_FOLDER = 'D:\Database\Audio\DeepFakeProject\Wav2vecMatrices' # The folder containing the Wav2Vec matrices
 DATASET_FOLDER = "/home/hp4ran/DeepFakeProject"
 #OPTUNA PARAMETERS
-LOAD_TRAINING = None
+LOAD_TRAINING = True
 EPOCHS = 50
 TRIALS = 20
 PATIENCE = 3
@@ -30,3 +30,5 @@ DROP_OUT = 0.3
 
 # logs path
 TRAINING_DATA_PATH = 'data/results/'  # Directory for saving training results
+
+#a file for dynamic loading ?

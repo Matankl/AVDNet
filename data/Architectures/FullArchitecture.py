@@ -241,6 +241,20 @@ class DeepFakeDetector(nn.Module):
             dense_hidden_dims: Hidden layer sizes for the dense classifier.
         """
         super(DeepFakeDetector, self).__init__()
+
+        self.config = {
+            "backbone": backbone,
+            "freeze_cnn": freeze_cnn,
+            "freeze_cnn_layers": freeze_cnn_layers,
+            "freeze_wav2vec": freeze_wav2vec,
+            "freeze_feature_extractor": freeze_feature_extractor,
+            "freeze_encoder_layers": freeze_encoder_layers,
+            "d_model": d_model,
+            "nhead": nhead,
+            "num_layers": num_layers,
+            "dense_hidden_dims": dense_hidden_dims
+        }
+
         # Select CNN backbone and set the expected output channels.
         if backbone.lower() == "vgg":
             self.cnn_extractor = VGG16FeatureExtractor(freeze=freeze_cnn, freeze_vgg_layers=freeze_cnn_layers)
