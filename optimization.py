@@ -25,7 +25,7 @@ class EarlyStopping:
         if self.best_loss is None: # if the loss is not yet has been instantiated
             self.best_loss = val_loss
 
-        if torch.isnan(torch.tensor(val_loss)) or torch.isinf(torch.tensor(val_loss)):  # if the loss exploded/have an issue
+        if torch.isnan(val_loss) or torch.isinf(val_loss):  # if the loss exploded/have an issue
             self.early_stop = True
 
         elif val_loss >= self.high_threshold:

@@ -1,5 +1,4 @@
 import importlib
-
 import matplotlib
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -20,6 +19,7 @@ def plot_loss(data, dir_path = ""):
     plt.legend()
     plt.savefig(dir_path + '/loss_plot.jpeg')
 
+
 def save_model(model, path):
     """This function saves the model as a .pth file
     and keep tracks of:
@@ -35,6 +35,7 @@ def save_model(model, path):
         path)
 
     return path
+
 
 def load_model(save_path, model_class = None):
     """
@@ -71,75 +72,121 @@ def load_model(save_path, model_class = None):
 
     return model.to(device)
 
-def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, train_loader, trial, val_loader):
-    for epoch in tqdm(range(EPOCHS)):  # Limited epochs for optimization
-        model.train()
-        train_loss = -1
-        count_train = 0
-        exploding_batch_count = 0
-        for input_1, input_2, y_batch in train_loader:
+
+def train_one_epoch(model, train_loader, optimizer, criterion):
+    """
+    Performs one epoch of training. Returns the average training loss
+    and a flag indicating if early termination is needed due to
+    numerical instability (NaN/Inf in loss).
+    """
+    model.train()
+    train_loss = 0.0
+    count_train = 0
+    exploding_batch_count = 0
+
+    for input_1, input_2, y_batch in train_loader:
+        input_1, input_2, y_batch = (
+            input_1.to(DEVICE),
+            input_2.to(DEVICE),
+            y_batch.to(DEVICE)
+        )
+        optimizer.zero_grad()
+
+        y_pred = model(input_1, input_2).squeeze()
+        y_batch = y_batch.view(-1)  # ensure the shapes match
+        y_pred = y_pred.squeeze(-1)  # handle extra dimension if present
+        loss = criterion(y_pred, y_batch.float())
+
+        # Check for numerical instability
+        if torch.isnan(loss) or torch.isinf(loss):
+            exploding_batch_count += 1
+            loss.detach().item()
+            # If more than 10% of batches in this epoch explode, skip training
+            if exploding_batch_count >= len(train_loader) * 0.1:
+                print("Warning: NaN/Inf detected in loss. Skipping training.")
+                return float('inf'), True  # Return infinite loss, signal early termination
+
+            continue
+
+        # Backpropagation step
+        loss.backward()
+        optimizer.step()
+
+        train_loss += loss.detach().item()
+        count_train += 1
+
+    # Avoid division by zero in case all batches got skipped
+    avg_train_loss = train_loss / (count_train + 1e-10)
+    return avg_train_loss, False
+
+
+def validate_model(model, val_loader, criterion):
+    """
+    Performs validation on the given model and returns the validation
+    loss and calculated metrics (accuracy, recall, f1).
+    """
+    model.eval()
+    val_loss = 0.0
+    all_y_true, all_y_pred = [], []
+
+    with torch.no_grad():
+        for input_1, input_2, y_batch in val_loader:
             input_1, input_2, y_batch = (
                 input_1.to(DEVICE),
                 input_2.to(DEVICE),
                 y_batch.to(DEVICE)
             )
-            optimizer.zero_grad()
-
             y_pred = model(input_1, input_2).squeeze()
-            y_batch = y_batch.view(-1)
-            y_pred = y_pred.squeeze(-1)
-            loss = criterion(y_pred, y_batch.float())
 
-            # skipping a specific batch if numerical instability
-            if torch.isnan(torch.tensor(loss)) or torch.isinf(torch.tensor(loss)):
-                exploding_batch_count += 1
-                if exploding_batch_count >= len(train_loader) * 0.1:
-                    print("Warning: NaN/Inf detected in loss. Skipping training.")
-                    return float('inf'), float('inf'), 0  # Return worst values
+            batch_loss = criterion(y_pred.squeeze(), y_batch.float()).item()
+            val_loss += batch_loss
 
-                continue  # Skip this batch
+            all_y_true.extend(y_batch.cpu().numpy())
+            all_y_pred.extend(y_pred.squeeze().cpu().numpy())
 
-            loss.backward()
-            optimizer.step()
-            train_loss += loss.detach().item()
+    avg_val_loss = val_loss / len(val_loader)
+    accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))
+    return avg_val_loss, accuracy, recall, f1
 
-            count_train += 1
 
-        train_loss = train_loss / (count_train + 1e-10)  # Calculate average training loss
+def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, train_loader, trial, val_loader):
+    """
+    Main training method that loops over EPOCHS, calling the
+    separate train and validation methods.
+    """
+    for epoch in tqdm(range(EPOCHS)):
+        # --- TRAINING PHASE ---
+        train_loss, early_termination = train_one_epoch(
+            model, train_loader, optimizer, criterion
+        )
 
-        # Validation phase
-        model.eval()
-        val_loss = 0
-        all_y_true, all_y_pred = [], []
-        with torch.no_grad():
-            for input_1, input_2, y_batch in val_loader:
-                input_1, input_2, y_batch = (
-                    input_1.to(DEVICE),
-                    input_2.to(DEVICE),
-                    y_batch.to(DEVICE)
-                )
-                y_pred = model(input_1, input_2).squeeze()
-                val_loss += criterion(y_pred.squeeze(), y_batch.float()).item()
-                all_y_true.extend(y_batch.cpu().numpy())
-                all_y_pred.extend(y_pred.squeeze().cpu())
+        # If we detect NaN/Inf too often, stop and return worst values
+        if early_termination:
+            return float('inf'), float('inf'), 0
 
-        # Compute validation metrics
-        val_loss /= len(val_loader)
-        accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))
+        # --- VALIDATION PHASE ---
+        val_loss, accuracy, recall, f1 = validate_model(model, val_loader, criterion)
+
         print(
-            f'\nEpoch {epoch} : Train Loss = {train_loss}, Validation Loss = {val_loss}, Accuracy = {accuracy}, Recall = {recall}, F1 = {f1}')
+            f"\nEpoch {epoch} : "
+            f"Train Loss = {train_loss:.4f}, "
+            f"Validation Loss = {val_loss:.4f}, "
+            f"Accuracy = {accuracy:.4f}, "
+            f"Recall = {recall:.4f}, "
+            f"F1 = {f1:.4f}"
+        )
 
+        # Track the best validation loss
         if val_loss < best_trial_loss:
             best_trial_loss = val_loss
-            # Copy current model’s state_dict
             temp_model_path = f"checkpoints/tmp_model_trial_{trial.number}.pth"
             trial.set_user_attr("best_model_path", temp_model_path)
             save_model(model, temp_model_path)
 
-
-            # Early stopping check
+        # Early stopping check
         early_stopping(val_loss)
         if early_stopping.early_stop:
             return best_trial_loss, val_loss, f1
 
     return best_trial_loss, val_loss, f1
+
