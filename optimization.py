@@ -9,6 +9,7 @@ from data.Architectures.VGG16_FeaturesOnly import FeaturesOnly
 from data_methods import create_tensors_from_csv, calculate_metrics, get_dataloader
 from constants import *
 from train_methods import train_model, save_model, load_model
+import math
 
 
 # Early stopping implementation
@@ -25,7 +26,7 @@ class EarlyStopping:
         if self.best_loss is None: # if the loss is not yet has been instantiated
             self.best_loss = val_loss
 
-        if torch.isnan(val_loss) or torch.isinf(val_loss):  # if the loss exploded/have an issue
+        if math.isnan(val_loss) or math.isinf(val_loss):  # if the loss exploded/have an issue
             self.early_stop = True
 
         elif val_loss >= self.high_threshold:
