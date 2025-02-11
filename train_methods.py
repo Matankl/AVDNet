@@ -100,8 +100,9 @@ def train_one_epoch(model, train_loader, optimizer, criterion):
         # Check for numerical instability
         if torch.isnan(loss) or torch.isinf(loss):
             exploding_batch_count += 1
-            loss.detach().item()
-            # If more than 10% of batches in this epoch explode, skip training
+            del loss  # Free the loss tensor
+            torch.cuda.empty_cache()  # Manually clear GPU cache
+
             if exploding_batch_count >= len(train_loader) * 0.1:
                 print("Warning: NaN/Inf detected in loss. Skipping training.")
                 return float('inf'), True  # Return infinite loss, signal early termination
@@ -111,6 +112,7 @@ def train_one_epoch(model, train_loader, optimizer, criterion):
         # Backpropagation step
         loss.backward()
         optimizer.step()
+        optimizer.zero_grad(set_to_none=True)
 
         train_loss += loss.detach().item()
         count_train += 1
@@ -141,8 +143,8 @@ def validate_model(model, val_loader, criterion):
             batch_loss = criterion(y_pred.squeeze(), y_batch.float()).item()
             val_loss += batch_loss
 
-            all_y_true.extend(y_batch.cpu().numpy())
-            all_y_pred.extend(y_pred.squeeze().cpu().numpy())
+            all_y_true.extend(y_batch.detach().cpu().numpy())
+            all_y_pred.extend(y_pred.detach().squeeze().cpu().numpy())
 
     avg_val_loss = val_loss / len(val_loader)
     accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))
