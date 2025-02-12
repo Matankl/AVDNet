@@ -1,0 +1,152 @@
+  0%|          | 0/20 [00:00<?, ?it/s]Current trial parameters: {'learning_rate': 3.6356095612870684e-05, 'batch_size': 32, 'dropout': 0.35438282089153084, 'dense_layers': 4, 'dense_initial_dim': 1280, 'transformer_layers': 4, 'transformer_nhead': 4, 'head_dim': 16, 'freeze_cnn_layers': 15, 'freeze_encoder_layers': 0, 'weight_decay': 0.0013852132681493783}
+/home/hp4ran/anaconda3/envs/DL/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/hp4ran/anaconda3/envs/DL/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=VGG16_BN_Weights.IMAGENET1K_V1`. You can also use `weights=VGG16_BN_Weights.DEFAULT` to get the most up-to-date weights.
+  warnings.warn(msg)
+Some weights of Wav2Vec2Model were not initialized from the model checkpoint at facebook/wav2vec2-large-960h and are newly initialized: ['wav2vec2.masked_spec_embed']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+
+  0%|          | 0/50 [00:00<?, ?it/s]Starting to train:
+/home/hp4ran/PycharmProjects/The-model/train_methods.py:94: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  if torch.isnan(torch.tensor(loss)) or torch.isinf(torch.tensor(loss)):
+
+Epoch 0 : Train Loss = 0.1253106792581803, Validation Loss = 0.3018734606840046, Accuracy = 0.914380714879468, Recall = 0.763344727846437, F1 = 0.8623199168275657
+
+  2%|▏         | 1/50 [46:00<37:34:11, 2760.24s/it]/home/hp4ran/PycharmProjects/The-model/train_methods.py:94: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  if torch.isnan(torch.tensor(loss)) or torch.isinf(torch.tensor(loss)):
+
+Epoch 1 : Train Loss = 0.06193722853968844, Validation Loss = 0.0779801678773741, Accuracy = 0.9576983467257781, Recall = 0.8995529844859321, F1 = 0.9372602739726027
+
+  4%|▍         | 2/50 [1:30:40<36:10:20, 2712.94s/it]/home/hp4ran/PycharmProjects/The-model/train_methods.py:94: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  if torch.isnan(torch.tensor(loss)) or torch.isinf(torch.tensor(loss)):
+
+Epoch 2 : Train Loss = 0.05467653404007614, Validation Loss = 0.16042478465795199, Accuracy = 0.9294356700840491, Recall = 0.7998948198790429, F1 = 0.8884345794392523
+
+  6%|▌         | 3/50 [2:15:13<35:11:08, 2695.07s/it]/home/hp4ran/PycharmProjects/The-model/train_methods.py:94: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  if torch.isnan(torch.tensor(loss)) or torch.isinf(torch.tensor(loss)):
+
+Epoch 3 : Train Loss = 0.05224458910156825, Validation Loss = 0.12242044119444569, Accuracy = 0.9576983467257781, Recall = 0.8971864317643965, F1 = 0.9371051908816259
+
+
+
+
+this will be the 18th trial
+ 0%|          | 0/20 [00:00<?, ?it/s]Current trial parameters: {'learning_rate': 0.0002347104647663763, 'batch_size': 32, 'dropout': 0.4755971335955155, 'dense_layers': 2, 'dense_initial_dim': 1472, 'transformer_layers': 4, 'transformer_nhead': 7, 'head_dim': 64, 'freeze_cnn_layers': 5, 'freeze_encoder_layers': 3, 'weight_decay': 0.006727460017465636}
+/home/hp4ran/anaconda3/envs/DL/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/hp4ran/anaconda3/envs/DL/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=VGG16_BN_Weights.IMAGENET1K_V1`. You can also use `weights=VGG16_BN_Weights.DEFAULT` to get the most up-to-date weights.
+  warnings.warn(msg)
+Some weights of Wav2Vec2Model were not initialized from the model checkpoint at facebook/wav2vec2-large-960h and are newly initialized: ['wav2vec2.masked_spec_embed']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+/home/hp4ran/anaconda3/envs/DL/lib/python3.10/site-packages/torch/nn/modules/transformer.py:385: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.self_attn.num_heads is odd
+  warnings.warn(
+
+  0%|          | 0/50 [00:00<?, ?it/s]Starting to train:
+
+Epoch 0 : Train Loss = 0.1346, Validation Loss = 1.6604, Accuracy = 0.6567, Recall = 0.0226, F1 = 0.0442
+
+  2%|▏         | 1/50 [45:23<37:04:04, 2723.36s/it]
+Epoch 1 : Train Loss = 0.0916, Validation Loss = 0.4943, Accuracy = 0.8477, Recall = 0.5682, F1 = 0.7238
+
+  4%|▍         | 2/50 [1:30:25<36:08:29, 2710.61s/it]
+Epoch 2 : Train Loss = 0.0782, Validation Loss = 0.0979, Accuracy = 0.9592, Recall = 0.8867, F1 = 0.9385
+
+
+
+very interesting trial!! the fit is on the spot! (trial 19)
+
+/home/hp4ran/anaconda3/envs/DL/bin/python /home/hp4ran/PycharmProjects/The-model/optimization.py
+Runnig on device: cuda
+[I 2025-02-11 17:51:28,929] Using an existing study with name 'speech_classification' instead of creating a new one.
+  0%|          | 0/20 [00:00<?, ?it/s]Current trial parameters: {'learning_rate': 4.962471680555057e-07, 'batch_size': 8, 'dropout': 0.5586528667387535, 'dense_layers': 6, 'dense_initial_dim': 1216, 'transformer_layers': 4, 'transformer_nhead': 5, 'head_dim': 48, 'freeze_cnn_layers': 12, 'freeze_encoder_layers': 3, 'weight_decay': 1.6066319410123285e-06}
+/home/hp4ran/anaconda3/envs/DL/lib/python3.10/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/hp4ran/anaconda3/envs/DL/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=VGG16_BN_Weights.IMAGENET1K_V1`. You can also use `weights=VGG16_BN_Weights.DEFAULT` to get the most up-to-date weights.
+  warnings.warn(msg)
+Some weights of Wav2Vec2Model were not initialized from the model checkpoint at facebook/wav2vec2-large-960h and are newly initialized: ['wav2vec2.masked_spec_embed']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+/home/hp4ran/anaconda3/envs/DL/lib/python3.10/site-packages/torch/nn/modules/transformer.py:385: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.self_attn.num_heads is odd
+  warnings.warn(
+Starting to train:
+
+  0%|          | 0/50 [00:00<?, ?it/s]
+Epoch 0 : Train Loss = 0.7006, Validation Loss = 0.7017, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+  2%|▏         | 1/50 [57:14<46:44:59, 3434.67s/it]
+Epoch 1 : Train Loss = 0.6817, Validation Loss = 0.6932, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+  4%|▍         | 2/50 [1:54:35<45:50:28, 3438.09s/it]
+Epoch 2 : Train Loss = 0.6676, Validation Loss = 0.6758, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+  6%|▌         | 3/50 [2:52:24<45:04:13, 3452.20s/it]
+  8%|▊         | 4/50 [3:49:47<44:04:04, 3448.80s/it]
+Epoch 3 : Train Loss = 0.6526, Validation Loss = 0.6801, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+Epoch 4 : Train Loss = 0.6417, Validation Loss = 0.6729, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 10%|█         | 5/50 [4:47:15<43:06:22, 3448.51s/it]
+Epoch 5 : Train Loss = 0.6308, Validation Loss = 0.6723, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 12%|█▏        | 6/50 [5:44:42<42:08:31, 3447.99s/it]
+Epoch 6 : Train Loss = 0.6217, Validation Loss = 0.6625, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 14%|█▍        | 7/50 [6:42:04<41:09:34, 3445.91s/it]
+Epoch 7 : Train Loss = 0.6135, Validation Loss = 0.6611, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 16%|█▌        | 8/50 [7:39:32<40:12:32, 3446.48s/it]
+Epoch 8 : Train Loss = 0.6043, Validation Loss = 0.6544, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 18%|█▊        | 9/50 [8:36:54<39:14:17, 3445.30s/it]
+Epoch 9 : Train Loss = 0.5926, Validation Loss = 0.6411, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 20%|██        | 10/50 [9:34:14<38:15:39, 3443.49s/it]
+Epoch 10 : Train Loss = 0.5803, Validation Loss = 0.6217, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 22%|██▏       | 11/50 [10:31:35<37:17:45, 3442.70s/it]
+Epoch 11 : Train Loss = 0.5656, Validation Loss = 0.6084, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 24%|██▍       | 12/50 [11:28:58<36:20:26, 3442.79s/it]
+Epoch 12 : Train Loss = 0.5501, Validation Loss = 0.5916, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 26%|██▌       | 13/50 [12:26:17<35:22:27, 3441.83s/it]
+Epoch 13 : Train Loss = 0.5299, Validation Loss = 0.5840, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 28%|██▊       | 14/50 [13:23:43<34:25:51, 3443.10s/it]
+Epoch 14 : Train Loss = 0.5137, Validation Loss = 0.5449, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 30%|███       | 15/50 [14:21:04<33:28:01, 3442.32s/it]
+ 32%|███▏      | 16/50 [15:18:21<32:29:46, 3440.78s/it]
+Epoch 15 : Train Loss = 0.4956, Validation Loss = 0.5453, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+Epoch 16 : Train Loss = 0.4760, Validation Loss = 0.4616, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 34%|███▍      | 17/50 [16:15:45<31:33:02, 3441.89s/it]
+
+Epoch 17 : Train Loss = 0.4576, Validation Loss = 0.4726, Accuracy = 0.6576, Recall = 0.0252, F1 = 0.0492
+ 36%|███▌      | 18/50 [17:13:05<30:35:17, 3441.16s/it]
+Epoch 18 : Train Loss = 0.4381, Validation Loss = 0.4232, Accuracy = 0.6487, Recall = 0.0000, F1 = 0.0000
+
+ 38%|███▊      | 19/50 [18:10:27<29:38:07, 3441.53s/it]
+Epoch 19 : Train Loss = 0.4198, Validation Loss = 0.4016, Accuracy = 0.6840, Recall = 0.1007, F1 = 0.1829
+
+ 40%|████      | 20/50 [19:07:50<28:40:56, 3441.88s/it]
+Epoch 20 : Train Loss = 0.4010, Validation Loss = 0.3517, Accuracy = 0.8911, Recall = 0.7108, F1 = 0.8210
+
+ 42%|████▏     | 21/50 [20:05:16<27:44:08, 3443.05s/it]
+Epoch 21 : Train Loss = 0.3843, Validation Loss = 0.3450, Accuracy = 0.9216, Recall = 0.8414, F1 = 0.8829
+
+ 44%|████▍     | 22/50 [21:02:41<26:47:01, 3443.62s/it]
+Epoch 22 : Train Loss = 0.3683, Validation Loss = 0.3325, Accuracy = 0.9534, Recall = 0.9295, F1 = 0.9335
+
+ 46%|████▌     | 23/50 [22:00:09<25:50:16, 3445.04s/it]
+Epoch 23 : Train Loss = 0.3544, Validation Loss = 0.3282, Accuracy = 0.9329, Recall = 0.9763, F1 = 0.9109
+
+ 48%|████▊     | 24/50 [22:57:32<24:52:33, 3444.36s/it]
+Epoch 24 : Train Loss = 0.3403, Validation Loss = 0.2853, Accuracy = 0.9368, Recall = 0.8701, F1 = 0.9063
+
+ 50%|█████     | 25/50 [23:54:55<23:54:59, 3443.98s/it]
+
+Epoch 25 : Train Loss = 0.3259, Validation Loss = 0.3256, Accuracy = 0.9222, Recall = 0.9855, F1 = 0.8990
+ 52%|█████▏    | 26/50 [24:52:17<22:57:25, 3443.56s/it]
+
+
