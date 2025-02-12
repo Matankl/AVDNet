@@ -14,7 +14,7 @@ import math
 
 # Early stopping implementation
 class EarlyStopping:
-    def __init__(self, patience=5, delta=0.000001, exp_threshold = 10000):
+    def __init__(self, patience=5, delta=0.001, exp_threshold = 10000):
         self.patience = patience
         self.delta = delta
         self.best_loss = None
