@@ -1,4 +1,6 @@
 import importlib
+import time
+
 import matplotlib
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -169,8 +171,10 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, tr
         # --- VALIDATION PHASE ---
         val_loss, accuracy, recall, f1 = validate_model(model, val_loader, criterion)
 
+        now = time.strftime("%d/%m %H:%M:%S", time.localtime())
         print(
-            f"\nEpoch {epoch} : "
+            f"\n{now} - "
+            f"Epoch {epoch} : "
             f"Train Loss = {train_loss:.4f}, "
             f"Validation Loss = {val_loss:.4f}, "
             f"Accuracy = {accuracy:.4f}, "

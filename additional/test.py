@@ -5,7 +5,7 @@ from data.Architectures.FullArchitecture import DeepFakeDetector
 from constants import *
 from train_methods import load_model
 
-best_model_path = r"/home/hp4ran/PycharmProjects/The-model/checkpoints/tmp_model_trial_7.pth"
+best_model_path = r"/home/hp4ran/PycharmProjects/The-model/Final Models/Wav2Vec_VGG.pth"
 
 # load the best model with the best parameters
 model = load_model(best_model_path, DeepFakeDetector)

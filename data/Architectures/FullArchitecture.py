@@ -259,10 +259,17 @@ class DeepFakeDetector(nn.Module):
         if backbone.lower() == "vgg":
             self.cnn_extractor = VGG16FeatureExtractor(freeze=freeze_cnn, freeze_vgg_layers=freeze_cnn_layers)
             cnn_channels = 512
+
         elif backbone.lower() == "resnet":
             self.cnn_extractor = ResNetFeatureExtractor(model_name="resnet50", freeze=freeze_cnn,
                                                         freeze_resnet_layers=freeze_cnn_layers)
-            cnn_channels = 2048
+            cnn_channels = 2048 # for resnet50
+
+        elif backbone.lower() == "resnet34":
+            self.cnn_extractor = ResNetFeatureExtractor(model_name="resnet34", freeze=freeze_cnn,
+                                                        freeze_resnet_layers=freeze_cnn_layers)
+            cnn_channels = 512 # for resnet34
+
         else:
             raise ValueError("Unsupported backbone. Choose 'vgg' or 'resnet'.")
 

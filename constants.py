@@ -13,9 +13,9 @@ WAV2VEC_FOLDER = 'D:\Database\Audio\DeepFakeProject\Wav2vecMatrices' # The folde
 DATASET_FOLDER = "/home/hp4ran/DeepFakeProject"
 #OPTUNA PARAMETERS
 LOAD_TRAINING = True
-EPOCHS = 50
+EPOCHS = 100
 TRIALS = 20
-PATIENCE = 3
+PATIENCE = 4
 PARTIAL_TRAINING = 1
 
 DEBUGMODE = False

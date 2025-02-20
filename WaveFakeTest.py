@@ -8,7 +8,7 @@ if __name__ == '__main__':
     # csv_files = [r"C:\Users\parde\PycharmProjects\The-model\data\Inputs\test_30h.csv"]
 
     model = torch.load(
-        r"Model Demo/DeepFakeModel_lr=1.0995252939300183e-05_bs=16_drop=0.65_layers=5_valloss=0.1127.pth")
+        r"Final Models/DeepFakeModel_lr=1.0995252939300183e-05_bs=16_drop=0.65_layers=5_valloss=0.1127.pth")
 
     results = []
     for csv_file in csv_files:

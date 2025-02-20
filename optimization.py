@@ -3,6 +3,8 @@ from datetime import datetime
 import optuna
 import os
 import numpy as np
+
+from constants import TRIALS
 from data.Architectures.FullArchitecture import DeepFakeDetector
 from data.Architectures.VGG16 import DeepFakeDetection
 from data.Architectures.VGG16_FeaturesOnly import FeaturesOnly
@@ -14,7 +16,7 @@ import math
 
 # Early stopping implementation
 class EarlyStopping:
-    def __init__(self, patience=5, delta=0.001, exp_threshold = 10000):
+    def __init__(self, patience=5, delta=0.0001, exp_threshold = 10000):
         self.patience = patience
         self.delta = delta
         self.best_loss = None
@@ -49,7 +51,7 @@ def objective(trial):
     best_trial_loss = float('inf')
 
     # Hyperparameter search space
-    learning_rate = trial.suggest_float("learning_rate", 1e-7, 1e-2, log=True)
+    learning_rate = trial.suggest_float("learning_rate", 1e-7, 1e-3, log=True)
     batch_size = trial.suggest_categorical("batch_size",[8, 16, 32])
     dropout = trial.suggest_float("dropout", 0.1, 0.70)
     dense_layers = trial.suggest_int("dense_layers", 2, 7)  # total number of dense layers in classifier
@@ -90,7 +92,7 @@ def objective(trial):
 
     # Model initialization with tunable parameters.
     model = DeepFakeDetector(
-        backbone="vgg",
+        backbone="resnet34",
         freeze_cnn=True,
         freeze_cnn_layers=freeze_cnn_layers,
         freeze_wav2vec=True,
@@ -235,32 +237,40 @@ def save_best_model(study, prefix="DeepFakeModel", extension="pth"):
 def log_result(trial, filename="optuna_trials.csv"):
     """Logs all trial results into a CSV file for easy tracking."""
 
-    # Get the trial results
-    trial_dict = trial.params  # Hyperparameters
-    trial_dict["trial_number"] = trial.number  # Trial number
-
+    value_dict = {}
     # Check if the trial is multi-objective
-    if hasattr(trial, "values") and isinstance(trial.values, tuple):
+    if hasattr(trial, "values") and trial.values is not None:
         # Multi-objective: Store multiple objective values
-        for i, value in enumerate(trial.values):
-            trial_dict[f"value_{i}"] = value
-    else:
+        for i, val in enumerate(trial.values):
+            value_dict[f"value_{i}"] = val
+    elif hasattr(trial, "value") and  trial.value is not None:
         # Single-objective: Store a single value
-        trial_dict["value"] = trial.value
+        value_dict["value"] = trial.value
 
-            # Check if file exists to write headers
+    else:
+        return
+
+    # Merge dictionaries, ensuring order: trial_number -> values -> hyperparams
+    ordered_trial_dict = {
+        "trial_number": trial.number,  # First column
+        **value_dict,  # Multi-objective values (value_0, value_1, ...)
+        **trial.params  # Hyperparameters (remaining values)
+    }
+
+
+    # Check if file exists to write headers
     file_exists = os.path.isfile(filename)
 
     # Append trial results to the CSV file
     with open(filename, mode="a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=trial_dict.keys())
+        writer = csv.DictWriter(f, fieldnames=ordered_trial_dict.keys())
 
         # Write headers only if the file is new
         if not file_exists:
             writer.writeheader()
 
         # Write the trial data
-        writer.writerow(trial_dict)
+        writer.writerow(ordered_trial_dict)
 
 
 def save_all_trials_csv(study, filename_prefix="optuna_results"):
@@ -347,7 +357,10 @@ if __name__ == "__main__":
     os.makedirs("checkpoints", exist_ok=True)
     BEST_MODEL_PATH = "checkpoints/best_model.pth"
     BEST_PARAMS_PATH = "checkpoints/best_params.json"
-    STUDY_DB_PATH = "sqlite:///checkpoints/optuna_study.db"
+    # STUDY_DB_PATH = "sqlite:///checkpoints/optuna_study.db"
+    # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_ResNet.db"
+    STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_ResNet34.db"
+    # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG.db"
     if not LOAD_TRAINING:
         STUDY_DB_PATH = None
 
@@ -357,7 +370,12 @@ if __name__ == "__main__":
                                 directions=["minimize", "minimize", "maximize"],
                                 load_if_exists=LOAD_TRAINING)
 
-    study.optimize(objective, n_trials=TRIALS, show_progress_bar=True, callbacks=[save_best_model_callback])
+    if hasattr(study, "num_trials"):
+        nb_trials = TRIALS - study.num_trials if TRIALS > study.num_trials else 0
+    else:
+        nb_trials = TRIALS
+
+    study.optimize(objective, n_trials=nb_trials, show_progress_bar=True, callbacks=[save_best_model_callback])
 
     #save the results
     save_all_trials_csv(study, filename_prefix="data/results/optuna_results")
