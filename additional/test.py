@@ -1,11 +1,13 @@
 # Directories and paths
+from tqdm import tqdm
+
 from data_methods import get_dataloader, calculate_metrics
 import numpy as np
 from data.Architectures.FullArchitecture import DeepFakeDetector
 from constants import *
 from train_methods import load_model
 
-best_model_path = r"/home/hp4ran/PycharmProjects/The-model/Final Models/Wav2Vec_VGG.pth"
+best_model_path = r"/home/hp4ran/PycharmProjects/The-model/checkpoints/tmp_model_trial_0.pth"
 
 # load the best model with the best parameters
 model = load_model(best_model_path, DeepFakeDetector)
@@ -19,7 +21,7 @@ model.eval()
 val_loss = 0
 all_y_true, all_y_pred = [], []
 with torch.no_grad():
-    for input_1, input_2, y_batch in val_loader:
+    for input_1, input_2, y_batch in tqdm(val_loader):
         input_1, input_2, y_batch = (
             input_1.to(DEVICE),
             input_2.to(DEVICE),

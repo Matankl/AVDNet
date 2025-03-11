@@ -3,8 +3,6 @@ from datetime import datetime
 import optuna
 import os
 import numpy as np
-
-from constants import TRIALS
 from data.Architectures.FullArchitecture import DeepFakeDetector
 from data.Architectures.VGG16 import DeepFakeDetection
 from data.Architectures.VGG16_FeaturesOnly import FeaturesOnly
@@ -92,7 +90,7 @@ def objective(trial):
 
     # Model initialization with tunable parameters.
     model = DeepFakeDetector(
-        backbone="resnet34",
+        backbone="vgg",
         freeze_cnn=True,
         freeze_cnn_layers=freeze_cnn_layers,
         freeze_wav2vec=True,
@@ -304,7 +302,7 @@ def save_all_trials_csv(study, filename_prefix="optuna_results"):
 
         for trial in study.trials:  # iterate over all trials
 
-            log_result(trial)
+            log_result(trial, filename=f"study_results.csv")
 
             # If you only want completed trials, do:
             # if trial.state == optuna.trial.TrialState.COMPLETE:
@@ -359,8 +357,8 @@ if __name__ == "__main__":
     BEST_PARAMS_PATH = "checkpoints/best_params.json"
     # STUDY_DB_PATH = "sqlite:///checkpoints/optuna_study.db"
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_ResNet.db"
-    STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_ResNet34.db"
-    # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG.db"
+    # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_ResNet34.db"
+    STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG300M.db"
     if not LOAD_TRAINING:
         STUDY_DB_PATH = None
 

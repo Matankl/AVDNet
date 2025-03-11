@@ -109,7 +109,7 @@ class Wav2VecFeatureExtractor(nn.Module):
             freeze_encoder_layers (int): Number of initial transformer encoder layers to freeze.
         """
         super(Wav2VecFeatureExtractor, self).__init__()
-        self.model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-large-960h")
+        self.model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-xls-r-300m")
 
         if freeze:
             if freeze_feature_extractor:

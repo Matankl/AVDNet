@@ -45,7 +45,7 @@ def augment_audio(waveform, sample_rate):
     # Randomly apply augmentations
     augmentations = []
     if torch.rand(1) > 0.8:
-        rand = (torch.rand(1).item() * 1)
+        rand = (torch.rand(1).item())
         waveform = T.Vol(rand)(waveform)  # Random Volume Change
         augmentations.append(f"volume{rand}")
     if torch.rand(1) > 0.8:
@@ -114,13 +114,13 @@ class RawAudioDatasetLoader(Dataset):
         audio_dir, filename = self.file_list[idx]
         label = torch.tensor(self.labels[idx], dtype=torch.float32)
 
-        # Decide whether to apply augmentation.
-        use_augmented = random.random() < self.augment_prob
 
         # Full path to the audio file.
         audio_path = os.path.join(audio_dir, f"{filename}")
         waveform, sr = torchaudio.load(audio_path, format="wav")
 
+        # Decide whether to apply augmentation.
+        use_augmented = random.random() < self.augment_prob
         if use_augmented and self.dataset_type == "Train":
             waveform, _ = augment_audio(waveform, sr)
 
