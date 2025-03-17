@@ -1,3 +1,4 @@
+from constants import *
 import os
 import random
 import numpy as np
@@ -6,10 +7,7 @@ import torchaudio
 from sklearn.metrics import accuracy_score, recall_score, f1_score
 import torchaudio.transforms as T
 import torch.nn.functional as F
-from constants import *
 from torch.utils.data import Dataset, DataLoader
-
-
 
 # Define Dataset for Training & Validation
 class Wav2VecDataset(Dataset):
@@ -42,18 +40,85 @@ class Wav2VecDataset(Dataset):
 
 
 def augment_audio(waveform, sample_rate):
+    """
+    Apply audio augmentation return the augmented waveform and a list of the applied augmentations
+    """
     # Randomly apply augmentations
     augmentations = []
     if torch.rand(1) > 0.8:
         rand = (torch.rand(1).item())
         waveform = T.Vol(rand)(waveform)  # Random Volume Change
-        augmentations.append(f"volume{rand}")
     if torch.rand(1) > 0.8:
         rand = 35 + int(torch.rand(1).item() * 10)
         waveform = T.TimeMasking(time_mask_param=rand)(waveform)  # SpecAugment Time Masking
     if torch.rand(1) > 0.8:
         rand = 2 + int(torch.rand(1).item() * 5)
         waveform = T.FrequencyMasking(freq_mask_param=rand)(waveform)  # SpecAugment Frequency Masking
+    if torch.rand(1) > 0.8:
+        waveform = waveform + 0.005 * torch.randn_like(waveform)  # Mild Noise Injection
+
+    return waveform, augmentations
+
+def time_mask_waveform(waveform, sample_rate, mask_duration_ms=100):
+    """
+    Apply time masking to an audio waveform by zeroing out a random segment.
+
+    :param waveform: Tensor of shape (channels, time)
+    :param sample_rate: Sampling rate of the waveform
+    :param mask_duration_ms: Duration of the mask in milliseconds
+    :return: Time-masked waveform
+    """
+    num_samples = waveform.shape[1]
+    mask_duration = int((mask_duration_ms / 1000.0) * sample_rate)
+
+    if mask_duration >= num_samples:
+        return waveform  # Avoid masking the entire signal
+
+    start_idx = torch.randint(0, num_samples - mask_duration, (1,)).item()
+    waveform[:, start_idx:start_idx + mask_duration] = 0  # Zero out the segment
+
+    return waveform
+
+def frequency_mask_waveform(waveform, sample_rate, n_fft=2048, mask_size=2000):
+    """Apply frequency masking using STFT and ISTFT with a randomly chosen mask range."""
+
+    # Convert to frequency domain
+    stft = torch.stft(waveform, n_fft=n_fft, hop_length=n_fft//4, return_complex=True)
+
+    # Generate frequency bins
+    freqs = torch.linspace(0, sample_rate // 2, stft.shape[1])  # Frequency bins
+
+    # Pick a random start frequency for masking
+    max_start_freq = (sample_rate // 2) - mask_size
+    start_freq = random.randint(0, max_start_freq)
+    end_freq = start_freq + mask_size
+
+    # Apply mask
+    mask = (freqs >= start_freq) & (freqs <= end_freq)
+    stft[:, mask, :] = 0  # Zero out the masked frequency bins
+
+    # Convert back to time domain
+    masked_waveform = torch.istft(stft, n_fft=n_fft, hop_length=n_fft//4)
+
+    return masked_waveform
+
+def augment_audio_fixed(waveform, sample_rate):
+    """
+    Apply audio augmentation return the augmented waveform and a list of the applied augmentations
+    """
+    # Randomly apply augmentations
+    augmentations = []
+    if torch.rand(1) > 0.8:
+        # Volume Change
+        vol_factor = 1.0 + 1.5 * (torch.rand(1).item()) - 0.5  # Random volume change factor
+        waveform = waveform * vol_factor
+    if torch.rand(1) > 0.8:
+        # Time Masking (Applied to Waveform)
+        mask_duration = torch.randint(250, 1000, (1,)).item()  # Random mask duration between 250-1000ms
+        waveform = time_mask_waveform(waveform, sample_rate, mask_duration_ms=mask_duration)
+    if torch.rand(1) > 0.8:
+        mask_size= torch.randint(500, 3000, (1,)).item()
+        waveform = frequency_mask_waveform(waveform, sample_rate, mask_size=mask_size)
     if torch.rand(1) > 0.8:
         waveform = waveform + 0.005 * torch.randn_like(waveform)  # Mild Noise Injection
 
@@ -122,7 +187,10 @@ class RawAudioDatasetLoader(Dataset):
         # Decide whether to apply augmentation.
         use_augmented = random.random() < self.augment_prob
         if use_augmented and self.dataset_type == "Train":
-            waveform, _ = augment_audio(waveform, sr)
+            if DATA_AUGMENTATION:
+                waveform, _ = augment_audio_fixed(waveform, self.sample_rate)
+            else:
+                waveform, _ = augment_audio(waveform, sr)
 
         # Ensure exact length using padding or truncation
         if waveform.shape[1] < self.expected_length:

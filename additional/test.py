@@ -3,7 +3,7 @@ from tqdm import tqdm
 
 from data_methods import get_dataloader, calculate_metrics
 import numpy as np
-from data.Architectures.FullArchitecture import DeepFakeDetector
+from Architectures.FullArchitecture import DeepFakeDetector
 from constants import *
 from train_methods import load_model
 

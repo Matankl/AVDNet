@@ -1,13 +1,13 @@
+from constants import *
 import csv
 from datetime import datetime
 import optuna
 import os
 import numpy as np
-from data.Architectures.FullArchitecture import DeepFakeDetector
-from data.Architectures.VGG16 import DeepFakeDetection
-from data.Architectures.VGG16_FeaturesOnly import FeaturesOnly
+from Architectures.AVDNet import DeepFakeDetector
+from Architectures.VGG16 import DeepFakeDetection
+from Architectures.VGG16_FeaturesOnly import FeaturesOnly
 from data_methods import calculate_metrics, get_dataloader
-from constants import *
 from train_methods import train_model, save_model, load_model
 import math
 
@@ -358,7 +358,9 @@ if __name__ == "__main__":
     # STUDY_DB_PATH = "sqlite:///checkpoints/optuna_study.db"
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_ResNet.db"
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_ResNet34.db"
-    STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG300M.db"
+    # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG300M.db"
+    # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG.db"
+    STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG_Data_aug.db"
     if not LOAD_TRAINING:
         STUDY_DB_PATH = None
 

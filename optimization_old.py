@@ -4,9 +4,9 @@ import optuna
 import os
 import numpy as np
 from tqdm import tqdm
-from data.Architectures.VGG16 import DeepFakeDetection
-from data.Architectures.VGG16_FeaturesOnly import FeaturesOnly
-from data_methods import create_tensors_from_csv, calculate_metrics, get_dataloader
+from Architectures.VGG16 import DeepFakeDetection
+from Architectures.VGG16_FeaturesOnly import FeaturesOnly
+from data_methods import calculate_metrics, get_dataloader
 from constants import *
 
 
