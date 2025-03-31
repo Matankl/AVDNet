@@ -133,6 +133,62 @@ class Wav2VecFeatureExtractor(nn.Module):
 # =============================================================================
 # 4. Fusion Transformer Module
 # =============================================================================
+class PositionalEncoding2D(nn.Module):
+    """
+    Learnable 2D positional encoding.
+    For each (row, col), we have separate learnable embeddings that sum together.
+    This is commonly used in vision transformers.
+    """
+    def __init__(self, max_h, max_w, d_model):
+        super().__init__()
+        # Row and column embeddings
+        self.row_embed = nn.Embedding(max_h, d_model)
+        self.col_embed = nn.Embedding(max_w, d_model)
+        nn.init.trunc_normal_(self.row_embed.weight, std=0.02)
+        nn.init.trunc_normal_(self.col_embed.weight, std=0.02)
+
+    def forward(self, x, H, W):
+        """
+        x: Flattened tokens [B, H*W, d_model]
+        H, W: Spatial dimensions
+        Returns: [B, H*W, d_model] with 2D positional info added
+        """
+        # We'll create row and col indices for each of the H*W patches
+        # row: 0..H-1, col: 0..W-1
+        device = x.device
+        row_indices = torch.arange(H, device=device).unsqueeze(1).repeat(1, W).view(-1)  # [H*W]
+        col_indices = torch.arange(W, device=device).unsqueeze(0).repeat(H, 1).view(-1)  # [H*W]
+
+        # Get embeddings and sum them
+        row_emb = self.row_embed(row_indices)  # [H*W, d_model]
+        col_emb = self.col_embed(col_indices)  # [H*W, d_model]
+        pe_2d = row_emb + col_emb  # [H*W, d_model]
+
+        # Broadcast over the batch dimension
+        pe_2d = pe_2d.unsqueeze(0).expand(x.size(0), -1, -1)  # [B, H*W, d_model]
+        return x + pe_2d
+
+
+class PositionalEncoding1D(nn.Module):
+    """
+    Learnable 1D positional encoding for sequences (e.g., audio/timeseries).
+    """
+    def __init__(self, max_len, d_model):
+        super().__init__()
+        self.pe = nn.Embedding(max_len, d_model)
+        nn.init.trunc_normal_(self.pe.weight, std=0.02)
+
+    def forward(self, x, T):
+        """
+        x: [B, T, d_model]
+        T: sequence length
+        Returns: [B, T, d_model] with 1D positional info added
+        """
+        device = x.device
+        positions = torch.arange(T, device=device)  # [T]
+        pe_1d = self.pe(positions).unsqueeze(0).expand(x.size(0), -1, -1)  # [B, T, d_model]
+        return x + pe_1d
+
 class FusionTransformer(nn.Module):
     def __init__(self, cnn_in_channels, wav2vec_in_dim, d_model=256, nhead=8, num_layers=2, dropout=0.1):
         """
@@ -152,6 +208,14 @@ class FusionTransformer(nn.Module):
         self.wav2vec_proj = nn.Linear(wav2vec_in_dim, d_model)
         self.norm = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(p=dropout)
+
+        # Positional Encodings
+        self.pos_encoding_2d = PositionalEncoding2D(4, 15, d_model)
+        self.pos_encoding_1d = PositionalEncoding1D(200, d_model)
+
+        # Token type embedding (to distinguish CNN vs. Wav2Vec tokens)
+        self.token_type_embeddings = nn.Embedding(2, d_model)
+        nn.init.trunc_normal_(self.token_type_embeddings.weight, std=0.02)
 
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dropout=dropout, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
@@ -175,11 +239,27 @@ class FusionTransformer(nn.Module):
         cnn_tokens = cnn_feat.view(B, C, -1).transpose(1, 2)  # [B, H*W, C]
         cnn_tokens = self.cnn_proj(cnn_tokens)  # [B, H*W, d_model]
 
-
         wav2vec_tokens = self.wav2vec_proj(wav2vec_feat)  # [B, T, d_model]
 
-        print(wav2vec_tokens.size(1))
-        print(H, W)
+        # adding positional encoding
+        cnn_tokens = self.pos_encoding_2d(cnn_tokens, H, W)  # [B, H*W, d_model]
+        T = wav2vec_tokens.size(1)
+        wav2vec_tokens = self.pos_encoding_1d(wav2vec_tokens, T)  # [B, T, d_model]
+
+        # model encoding 0 for VGG 1 for Wav2vec2
+        device = cnn_tokens.device
+        cnn_type_ids = torch.zeros(H * W, dtype=torch.long, device=device)
+        w2v_type_ids = torch.ones(T, dtype=torch.long, device=device)
+        # shape => [1, seq_len] => then expand batch dimension
+        cnn_type_emb = self.token_type_embeddings(cnn_type_ids).unsqueeze(0)
+        w2v_type_emb = self.token_type_embeddings(w2v_type_ids).unsqueeze(0)
+
+        # broadcast along batch
+        cnn_type_emb = cnn_type_emb.expand(B, -1, -1)  # [B, H*W, d_model]
+        w2v_type_emb = w2v_type_emb.expand(B, -1, -1)  # [B, T, d_model]
+        cnn_tokens = cnn_tokens + cnn_type_emb
+        wav2vec_tokens = wav2vec_tokens + w2v_type_emb
+
         # Concatenate tokens and apply dropout before fusion
         tokens = torch.cat([cnn_tokens, wav2vec_tokens], dim=1)  # [B, H*W + T, d_model]
         tokens = self.dropout(tokens)
@@ -223,7 +303,7 @@ class DenseClassifier(nn.Module):
 # =============================================================================
 # 6. Full DeepFake Detector Model with Backbone Choice
 # =============================================================================
-class DeepFakeDetector(nn.Module):
+class AVDNet(nn.Module):
     def __init__(self,
                  backbone="vgg",  # "vgg" or "resnet"
                  freeze_cnn=True, freeze_cnn_layers=None,
@@ -244,7 +324,7 @@ class DeepFakeDetector(nn.Module):
             d_model, nhead, num_layers: Parameters for the fusion Transformer.
             dense_hidden_dims: Hidden layer sizes for the dense classifier.
         """
-        super(DeepFakeDetector, self).__init__()
+        super(AVDNet, self).__init__()
 
         self.config = {
             "backbone": backbone,
@@ -315,13 +395,13 @@ if __name__ == "__main__":
     dummy_audio = torch.randn(2, 16000)  # Raw audio waveform (2 samples, 1 sec at 16kHz)
 
     # Example 1: Using VGG backbone (freezing first 10 modules of VGG features)
-    model_vgg = DeepFakeDetector(backbone="vgg", freeze_cnn=True, freeze_cnn_layers=10,
-                                 freeze_wav2vec=True, freeze_feature_extractor=True, freeze_encoder_layers=4)
+    model_vgg = AVDNet(backbone="vgg", freeze_cnn=True, freeze_cnn_layers=10,
+                       freeze_wav2vec=True, freeze_feature_extractor=True, freeze_encoder_layers=4)
     output_vgg = model_vgg(dummy_image, dummy_audio)
     print("VGG-based model output shape:", output_vgg.shape)
 
     # Example 2: Using ResNet backbone (freezing first 3 modules of ResNet features)
-    model_resnet = DeepFakeDetector(backbone="resnet", freeze_cnn=True, freeze_cnn_layers=3,
-                                    freeze_wav2vec=True, freeze_feature_extractor=True, freeze_encoder_layers=4)
+    model_resnet = AVDNet(backbone="resnet", freeze_cnn=True, freeze_cnn_layers=3,
+                          freeze_wav2vec=True, freeze_feature_extractor=True, freeze_encoder_layers=4)
     output_resnet = model_resnet(dummy_image, dummy_audio)
     print("ResNet-based model output shape:", output_resnet.shape)

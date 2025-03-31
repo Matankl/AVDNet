@@ -5,6 +5,7 @@ import optuna
 import os
 import numpy as np
 from Architectures.AVDNet import DeepFakeDetector
+from Architectures.AVDNetV2 import AVDNet
 from Architectures.VGG16 import DeepFakeDetection
 from Architectures.VGG16_FeaturesOnly import FeaturesOnly
 from data_methods import calculate_metrics, get_dataloader
@@ -57,8 +58,8 @@ def objective(trial):
 
     # Transformer fusion parameters
     transformer_layers = trial.suggest_int("transformer_layers", 1, 4)
-    transformer_nhead = trial.suggest_int("transformer_nhead", 4, 8)
-    head_dim = trial.suggest_int("head_dim", 16, 64, step=16)  # or choose an appropriate range
+    transformer_nhead = trial.suggest_int("transformer_nhead", 8, 24)
+    head_dim = trial.suggest_int("head_dim", 32, 128, step=16)  # or choose an appropriate range
     d_model = head_dim * transformer_nhead
 
     # Pretrained module freezing parameters
@@ -89,7 +90,7 @@ def objective(trial):
         current_dim = next_dim
 
     # Model initialization with tunable parameters.
-    model = DeepFakeDetector(
+    model = AVDNet(
         backbone="vgg",
         freeze_cnn=True,
         freeze_cnn_layers=freeze_cnn_layers,
@@ -360,7 +361,7 @@ if __name__ == "__main__":
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_ResNet34.db"
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG300M.db"
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG.db"
-    STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG_Data_aug.db"
+    STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG_spatial_info.db"
     if not LOAD_TRAINING:
         STUDY_DB_PATH = None
 
