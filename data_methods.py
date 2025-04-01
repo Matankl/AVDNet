@@ -4,7 +4,7 @@ import random
 import numpy as np
 import pandas as pd
 import torchaudio
-from sklearn.metrics import accuracy_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_score, roc_curve
 import torchaudio.transforms as T
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
@@ -308,3 +308,41 @@ def calculate_metrics(y_true, y_pred):
     recall = recall_score(y_true, y_pred_labels)  # Calculate recall
     f1 = f1_score(y_true, y_pred_labels)  # Calculate F1-score
     return acc, recall, f1
+
+
+# Function to calculate evaluation metrics
+def calculate_metrics_4(y_true, y_pred):
+    """
+    Calculate accuracy, recall, F1-score, and precision.
+
+    :param y_true: Ground truth labels (numpy array).
+    :param y_pred: Predicted probabilities (numpy array).
+    :return: Dictionary containing accuracy, recall, F1-score, and precision.
+    """
+    print(y_true.shape, y_pred.shape)
+    y_pred_labels = (y_pred > 0.5).astype(int)  # Convert probabilities to binary predictions
+    acc = accuracy_score(y_true, y_pred_labels)
+    recall = recall_score(y_true, y_pred_labels)
+    f1 = f1_score(y_true, y_pred_labels)
+    precision = precision_score(y_true, y_pred_labels)
+
+    return {
+        "accuracy": acc,
+        "recall": recall,
+        "f1_score": f1,
+        "precision": precision,
+    }
+
+def calculate_eer(y_true, y_pred):
+    """
+    Calculate the Equal Error Rate (EER).
+
+    :param y_true: Ground truth labels (numpy array).
+    :param y_pred: Predicted probabilities (numpy array).
+    :return: EER value
+    """
+    fpr, tpr, thresholds = roc_curve(y_true, y_pred)
+    fnr = 1 - tpr
+    eer_threshold_index = np.nanargmin(np.abs(fnr - fpr))
+    eer = (fpr[eer_threshold_index] + fnr[eer_threshold_index]) / 2
+    return eer

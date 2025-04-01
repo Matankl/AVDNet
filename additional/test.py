@@ -4,7 +4,7 @@ import os
 from tqdm import tqdm
 
 from Architectures.AVDNetV2 import AVDNet
-from data_methods import get_dataloader, calculate_metrics
+from data_methods import get_dataloader, calculate_metrics, calculate_eer, calculate_metrics_4
 import numpy as np
 from Architectures.AVDNet import DeepFakeDetector
 from constants import *
@@ -14,7 +14,7 @@ def evaluate_on_test(model_path):
     best_model_path = model_path
 
     # load the best model with the best parameters
-    model = load_model(best_model_path, AVDNet)
+    model = load_model(best_model_path, DeepFakeDetector)
     # model = torch.load(best_model_path, weights_only=False)
 
     val_loader = get_dataloader("Test", DATASET_FOLDER, batch_size=4, num_workers=1)
@@ -39,15 +39,30 @@ def evaluate_on_test(model_path):
 
     # Compute validation metrics
     val_loss /= len(val_loader)
-    accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))
-    print(f'Test Loss = {val_loss}, Accuracy = {accuracy}, Recall = {recall}, F1 = {f1}')
+    metrics = calculate_metrics_4(np.array(all_y_true), np.array(all_y_pred))
+    # Ensure y_pred is a NumPy array
+    all_y_pred = np.array(all_y_pred)
+    eer = calculate_eer(all_y_true, all_y_pred[:, 1] if all_y_pred.ndim > 1 and all_y_pred.shape[1] == 2 else all_y_pred)
 
 
-for i in range(10):
-    model_path = rf"/home/hp4ran/PycharmProjects/The-model/checkpoints/tmp_model_trial_{i}.pth"
-    if os.path.exists(model_path):
-        print(f"Results from {model_path}:")
-        evaluate_on_test(model_path)
-        continue
+    # Display results
+    print(f"Accuracy: {metrics['accuracy']:.4f}")
+    print(f"Precision: {metrics['precision']:.4f}")
+    print(f"Recall: {metrics['recall']:.4f}")
+    print(f"F1-score: {metrics['f1_score']:.4f}")
+    print(f"EER: {eer * 100:.2f}%")
 
-    break
+
+# for i in range(10):
+#     model_path = rf"/home/hp4ran/PycharmProjects/The-model/checkpoints/tmp_model_trial_{i}.pth"
+#     if os.path.exists(model_path):
+#         print(f"Results from {model_path}:")
+#         evaluate_on_test(model_path)
+#         continue
+#
+#     break
+
+model_path = rf"/home/hp4ran/PycharmProjects/The-model/Final Models/Wav2VecResNet50.pth"
+if os.path.exists(model_path):
+    print(f"Results from {model_path}:")
+    evaluate_on_test(model_path)
