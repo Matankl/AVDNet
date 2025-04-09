@@ -55,6 +55,3 @@ Make sure to modify the constants.py following fields as needed:
 -DEBUGMODE = False (for debug print)  
 -BATCH_SIZE = 16 (batch size for training)  
 -DROP_OUT = 0.3 (drop out rate)  
-
-@YohannPardes
-@Y.P
