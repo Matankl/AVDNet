@@ -46,7 +46,7 @@ def load_model(save_path, model_class = None):
     :return: Instantiated model loaded with the best weights.
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    checkpoint = torch.load(save_path, map_location=device)
+    checkpoint = torch.load(save_path, map_location=device, weights_only=False)
 
     # Retrieve hyperparameters
     hyperparameters = checkpoint.get('hyperparameters', {})

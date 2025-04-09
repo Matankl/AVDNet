@@ -14,10 +14,11 @@ def evaluate_on_test(model_path):
     best_model_path = model_path
 
     # load the best model with the best parameters
-    model = load_model(best_model_path, DeepFakeDetector)
+    model = load_model(best_model_path, AVDNet)
+    # print(model)
     # model = torch.load(best_model_path, weights_only=False)
 
-    val_loader = get_dataloader("Test", DATASET_FOLDER, batch_size=4, num_workers=1)
+    val_loader = get_dataloader("Test", DATASET_FOLDER, batch_size=2, num_workers=1)
     criterion = torch.nn.BCEWithLogitsLoss()
 
 
@@ -53,16 +54,17 @@ def evaluate_on_test(model_path):
     print(f"EER: {eer * 100:.2f}%")
 
 
-# for i in range(10):
-#     model_path = rf"/home/hp4ran/PycharmProjects/The-model/checkpoints/tmp_model_trial_{i}.pth"
-#     if os.path.exists(model_path):
-#         print(f"Results from {model_path}:")
-#         evaluate_on_test(model_path)
-#         continue
-#
-#     break
+for i in range(20):
+    model_path = rf"/home/hp4ran/PycharmProjects/The-model/checkpoints/tmp_model_trial_{i}.pth"
+    if os.path.exists(model_path):
+        print(f"Results from {model_path}:")
+        evaluate_on_test(model_path)
+        continue
 
-model_path = rf"/home/hp4ran/PycharmProjects/The-model/Final Models/Wav2VecResNet50.pth"
-if os.path.exists(model_path):
-    print(f"Results from {model_path}:")
-    evaluate_on_test(model_path)
+    break
+
+
+# model_path = rf"/home/hp4ran/PycharmProjects/The-model/Final Models/Wav2Vec_VGG_spatial_info.pth"
+# if os.path.exists(model_path):
+#     print(f"Results from {model_path}:")
+#     evaluate_on_test(model_path)

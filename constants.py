@@ -18,11 +18,11 @@ WAV2VEC_FOLDER = 'D:\Database\Audio\DeepFakeProject\Wav2vecMatrices' # The folde
 DATASET_FOLDER = "/home/hp4ran/DeepFakeProject"
 #OPTUNA PARAMETERS
 LOAD_TRAINING = True
-DATA_AUGMENTATION = False # to use the previous data augmentation script, set to False
+DATA_AUGMENTATION = True # to use the previous data augmentation script, set to False
 EPOCHS = 100
-TRIALS = 10
+TRIALS = 15
 PATIENCE = 4
-PARTIAL_TRAINING = 1
+PARTIAL_TRAINING = 1 # between 0-1 how much of the data to use
 
 DEBUGMODE = False
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

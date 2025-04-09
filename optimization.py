@@ -295,42 +295,44 @@ def save_all_trials_csv(study, filename_prefix="optuna_results"):
     ]
 
     # Open the CSV file for writing
-    if not os.path.exists("data/results"):
-        os.mkdir("data/results")
-    with open(filename, mode="w", newline="") as csv_file:
-        writer = csv.writer(csv_file)
-        writer.writerow(header)
+    # if not os.path.exists("data/results"):
+    #     os.mkdir("data/results")
+    for trial in study.trials:  # iterate over all trial
+        log_result(trial, filename=f"Final Models/study_results.csv")
+    # with open(filename, mode="w", newline="") as csv_file:
+    #     writer = csv.writer(csv_file)
+    #     writer.writerow(header)
+    #
+    #     for trial in study.trials:  # iterate over all trials
+    #
+    #         log_result(trial, filename=f"study_results.csv")
+    #
+    #         # If you only want completed trials, do:
+    #         # if trial.state == optuna.trial.TrialState.COMPLETE:
+    #
+    #         # Extract hyperparameters from trial.params
+    #         lr = trial.params.get("learning_rate", None)
+    #         bs = trial.params.get("batch_size", None)
+    #         drop = trial.params.get("dropout", None)
+    #         layers = trial.params.get("dense_layers", None)
+    #
+    #         # Extract user_attrs from the objective
+    #         val_loss = trial.user_attrs.get("best_val_loss", None)
+    #         val_f1 = trial.user_attrs.get("best_val_f1", None)
+    #
+    #         # Write a row to the CSV
+    #         writer.writerow([
+    #             trial.number,     # Unique trial index
+    #             lr,
+    #             bs,
+    #             drop,
+    #             layers,
+    #             val_loss,
+    #             val_f1,
+    #             trial.state.name  # e.g., COMPLETE, PRUNED, FAIL, etc.
+    #         ])
 
-        for trial in study.trials:  # iterate over all trials
-
-            log_result(trial, filename=f"study_results.csv")
-
-            # If you only want completed trials, do:
-            # if trial.state == optuna.trial.TrialState.COMPLETE:
-
-            # Extract hyperparameters from trial.params
-            lr = trial.params.get("learning_rate", None)
-            bs = trial.params.get("batch_size", None)
-            drop = trial.params.get("dropout", None)
-            layers = trial.params.get("dense_layers", None)
-
-            # Extract user_attrs from the objective
-            val_loss = trial.user_attrs.get("best_val_loss", None)
-            val_f1 = trial.user_attrs.get("best_val_f1", None)
-
-            # Write a row to the CSV
-            writer.writerow([
-                trial.number,     # Unique trial index
-                lr,
-                bs,
-                drop,
-                layers,
-                val_loss,
-                val_f1,
-                trial.state.name  # e.g., COMPLETE, PRUNED, FAIL, etc.
-            ])
-
-    print(f"All trial results have been saved to '{filename}'.")
+    # print(f"All trial results have been saved to '{filename}'.")
 
 
 def save_best_model_callback(study, trial):
@@ -361,7 +363,8 @@ if __name__ == "__main__":
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_ResNet34.db"
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG300M.db"
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG.db"
-    STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG_spatial_info.db"
+    # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG_spatial_info.db"
+    STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG_spatial_data_aug.db"
     if not LOAD_TRAINING:
         STUDY_DB_PATH = None
 
@@ -380,6 +383,7 @@ if __name__ == "__main__":
 
     #save the results
     save_all_trials_csv(study, filename_prefix="data/results/optuna_results")
+    print("csv saved...")
     path_to_best_model = save_best_model(study)
 
     # Get the best hyperparameters
