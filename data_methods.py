@@ -207,6 +207,84 @@ class RawAudioDatasetLoader(Dataset):
         return lfcc_input, wav2vec_input, label
 
 
+class RecursiveFakeAudioDataset(Dataset):
+    def __init__(self, root_dir, dataset_type="Fake", fraction=False):
+        """
+        Recursively loads audio files from a directory structure: main_folder->language->technique->audio.wav
+        and assigns them all label 1 (Fake).
+
+        Args:
+            root_dir (str): Path to the main folder containing language subfolders.
+            dataset_type (str): Only used for consistency with existing loader interface.
+            fraction (float or bool): If provided as float (0-1), loads only that fraction of data.
+        """
+        self.data = []
+        self.augment_prob = 0.20
+        self.sample_rate = 16000
+        self.expected_length = self.sample_rate * 4  # 4 seconds
+        self.dataset_type = dataset_type
+
+        # Recursively find all .wav files
+        for lang_dir in os.listdir(root_dir):
+            lang_path = os.path.join(root_dir, lang_dir)
+            if not os.path.isdir(lang_path):
+                continue
+
+            for technique_dir in os.listdir(lang_path):
+                technique_path = os.path.join(lang_path, technique_dir)
+                if not os.path.isdir(technique_path):
+                    continue
+
+                # Find all WAV files in this technique directory
+                for file in os.listdir(technique_path):
+                    if file.endswith('.wav'):
+                        self.data.append((technique_path, file, 1))  # Always assign label 1 (Fake)
+
+        # Shuffle all (path, filename, label) entries together
+        random.shuffle(self.data)
+        if fraction and isinstance(fraction, float) and 0 < fraction < 1:
+            self.data = self.data[:int(len(self.data) * fraction)]
+
+        # Unpack shuffled data into separate lists
+        self.file_list = [(entry[0], entry[1]) for entry in self.data]  # (source_path, filename)
+        self.labels = [entry[2] for entry in self.data]
+
+        print(f"Loaded {len(self.data)} fake audio files from {root_dir}")
+
+    def __len__(self):
+        return len(self.file_list)
+
+    def __getitem__(self, idx):
+        audio_dir, filename = self.file_list[idx]
+        label = torch.tensor(self.labels[idx], dtype=torch.float32)
+
+        # Full path to the audio file
+        audio_path = os.path.join(audio_dir, filename)
+        waveform, sr = torchaudio.load(audio_path, format="wav")
+
+        # Decide whether to apply augmentation
+        use_augmented = random.random() < self.augment_prob
+        if use_augmented and self.dataset_type == "Train":
+            if DATA_AUGMENTATION:
+                waveform, _ = augment_audio_fixed(waveform, self.sample_rate)
+            else:
+                waveform, _ = augment_audio(waveform, sr)
+
+        # Ensure exact length using padding or truncation
+        if waveform.shape[1] < self.expected_length:
+            pad_size = self.expected_length - waveform.shape[1]
+            waveform = F.pad(waveform, (0, pad_size))  # Pad with zeros
+        elif waveform.shape[1] > self.expected_length:
+            waveform = waveform[:, :self.expected_length]  # Truncate
+
+        # Extract LFCC features from the waveform
+        lfcc_input = extract_lfcc_torchaudio(waveform, sr)
+        # For fine-tuning Wav2Vec, use the raw waveform
+        wav2vec_input = waveform
+
+        return lfcc_input, wav2vec_input, label
+
+
 def extract_lfcc_torchaudio(waveform, sample_rate=16000, n_lfcc=80, n_filter=128, log_lf=False):
     """
     Extract LFCC features from waveform using torchaudio.
@@ -255,7 +333,11 @@ def get_dataloader(dataset_type, root_dir, pin_memory=False, batch_size=32, shuf
     Returns:
         DataLoader: The DataLoader instance for the dataset.
     """
-    dataset = RawAudioDatasetLoader(root_dir=root_dir, dataset_type=dataset_type, fraction = fraction)
+    if "Fake" == dataset_type:
+        dataset = RecursiveFakeAudioDataset(root_dir=root_dir, dataset_type=dataset_type, fraction=fraction)
+    else:
+        dataset = RawAudioDatasetLoader(root_dir=root_dir, dataset_type=dataset_type, fraction = fraction)
+
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
                             pin_memory=pin_memory)
     return dataloader
