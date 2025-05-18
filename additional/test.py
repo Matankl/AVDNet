@@ -4,9 +4,8 @@ import os
 from tqdm import tqdm
 
 from Architectures.AVDNetV2 import AVDNet
-from data_methods import get_dataloader, calculate_metrics, calculate_eer, calculate_metrics_4
+from data_methods import get_dataloader, calculate_eer, calculate_metrics_4
 import numpy as np
-from Architectures.AVDNet import DeepFakeDetector
 from constants import *
 from train_methods import load_model
 
@@ -18,7 +17,7 @@ def evaluate_on_test(model_path):
     # print(model)
     # model = torch.load(best_model_path, weights_only=False)
 
-    val_loader = get_dataloader("Test", DATASET_FOLDER, batch_size=2, num_workers=1)
+    val_loader = get_dataloader("Test", DATASET_FOLDER, batch_size=8, num_workers=1)
     criterion = torch.nn.BCEWithLogitsLoss()
 
 
@@ -54,17 +53,17 @@ def evaluate_on_test(model_path):
     print(f"EER: {eer * 100:.2f}%")
 
 
-for i in range(20):
-    model_path = rf"/home/hp4ran/PycharmProjects/The-model/checkpoints/tmp_model_trial_{i}.pth"
-    if os.path.exists(model_path):
-        print(f"Results from {model_path}:")
-        evaluate_on_test(model_path)
-        continue
+# for i in range(20):
+#     model_path = rf"/home/hp4ran/PycharmProjects/The-model/checkpoints/tmp_model_trial_{i}.pth"
+#     if os.path.exists(model_path):
+#         print(f"Results from {model_path}:")
+#         evaluate_on_test(model_path)
+#         continue
+#
+#     break
 
-    break
 
-
-# model_path = rf"/home/hp4ran/PycharmProjects/The-model/Final Models/Wav2Vec_VGG_spatial_info.pth"
-# if os.path.exists(model_path):
-#     print(f"Results from {model_path}:")
-#     evaluate_on_test(model_path)
+model_path = rf"/home/hp4ran/PycharmProjects/The-model/checkpoints/15-05 05:42 tmp_model_trial_5.pth"
+if os.path.exists(model_path):
+    print(f"Results from {model_path}:")
+    evaluate_on_test(model_path)
