@@ -75,7 +75,7 @@ def load_model(save_path, model_class = None):
     return model.to(device)
 
 
-def train_one_epoch(model, train_loader, optimizer, criterion):
+def train_one_epoch(model, train_loader, optimizer, scheduler, criterion):
     """
     Performs one epoch of training. Returns the average training loss
     and a flag indicating if early termination is needed due to
@@ -118,6 +118,9 @@ def train_one_epoch(model, train_loader, optimizer, criterion):
 
         train_loss += loss.detach().item()
         count_train += 1
+
+    if scheduler is not None:
+        scheduler.step()
 
     # Avoid division by zero in case all batches got skipped
     avg_train_loss = train_loss / (count_train + 1e-10)
