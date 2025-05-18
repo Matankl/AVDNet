@@ -1,8 +1,8 @@
 # AVDNet
 
-this is the code base for training and optimizing the ADVNet architecture
+This is the code base for training and optimizing the ADVNet architecture
 
-The entry point to the codebase is optimization.py, running an optuna study to find the optimal hyperparameters.  
+The entry point to the codebase is optimization.py, running an optuna study to find the optimal hyperparameters for your own audio problem.  
 The architecture is stored at Architectures/AVDNet.py  
 
 To create and run a model:  
