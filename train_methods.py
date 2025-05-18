@@ -121,6 +121,18 @@ def train_one_epoch(model, train_loader, optimizer, criterion):
 
     # Avoid division by zero in case all batches got skipped
     avg_train_loss = train_loss / (count_train + 1e-10)
+    all_y_true.extend(y_batch.detach().cpu().numpy())
+    all_y_pred.extend(y_pred.detach().squeeze().cpu().numpy())
+    accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))
+
+    now = time.strftime("%d/%m %H:%M:%S", time.localtime())
+    print(
+        f"\n{now} - "
+        f"Train Loss = {avg_train_loss:.4f}, "
+        f"Train Accuracy = {accuracy:.4f}, "
+        f"Train Recall = {recall:.4f}, "
+        f"Train F1 = {f1:.4f}"
+    )
     return avg_train_loss, False
 
 
