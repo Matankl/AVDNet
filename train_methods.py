@@ -85,16 +85,17 @@ def train_one_epoch(model, train_loader, optimizer, scheduler, criterion):
     train_loss = 0.0
     count_train = 0
     exploding_batch_count = 0
+    all_y_true, all_y_pred = [], []
 
-    for input_1, input_2, y_batch in train_loader:
-        input_1, input_2, y_batch = (
-            input_1.to(DEVICE),
-            input_2.to(DEVICE),
+    for lfcc_in, waveform_in, y_batch in train_loader:
+        lfcc_in, waveform_in, y_batch = (
+            lfcc_in.to(DEVICE),
+            waveform_in.to(DEVICE),
             y_batch.to(DEVICE)
         )
         optimizer.zero_grad()
 
-        y_pred = model(input_1, input_2).squeeze()
+        y_pred = model(lfcc_in, waveform_in).squeeze()
         y_batch = y_batch.view(-1)  # ensure the shapes match
         y_pred = y_pred.squeeze(-1)  # handle extra dimension if present
         loss = criterion(y_pred, y_batch.float())
@@ -168,7 +169,7 @@ def validate_model(model, val_loader, criterion):
     return avg_val_loss, accuracy, recall, f1
 
 
-def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, train_loader, trial, val_loader):
+def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, scheduler, train_loader, trial, val_loader):
     """
     Main training method that loops over EPOCHS, calling the
     separate train and validation methods.
@@ -176,7 +177,7 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, tr
     for epoch in tqdm(range(EPOCHS)):
         # --- TRAINING PHASE ---
         train_loss, early_termination = train_one_epoch(
-            model, train_loader, optimizer, criterion
+            model, train_loader, optimizer, scheduler, criterion
         )
 
         # If we detect NaN/Inf too often, stop and return worst values
@@ -200,8 +201,10 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, tr
         # Track the best validation loss
         if val_loss < best_trial_loss:
             best_trial_loss = val_loss
-            temp_model_path = f"checkpoints/tmp_model_trial_{trial.number}.pth"
+            timestamp = time.strftime("%d-%m %H:%M", time.localtime())
+            temp_model_path = f"checkpoints/{timestamp} tmp_model_trial_{trial.number}.pth"
             trial.set_user_attr("best_model_path", temp_model_path)
+            print("* Best model yet.")
             save_model(model, temp_model_path)
 
         # Early stopping check
