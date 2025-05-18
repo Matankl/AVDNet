@@ -1,13 +1,15 @@
+import random
+
 from constants import *
 import csv
 from datetime import datetime
 import optuna
 import os
 import numpy as np
-from Architectures.AVDNet import DeepFakeDetector
+from additional.Archive.AVDNet import DeepFakeDetector
 from Architectures.AVDNetV2 import AVDNet
-from Architectures.VGG16 import DeepFakeDetection
-from Architectures.VGG16_FeaturesOnly import FeaturesOnly
+from additional.Archive.VGG16 import DeepFakeDetection
+from additional.Archive.VGG16_FeaturesOnly import FeaturesOnly
 from data_methods import calculate_metrics, get_dataloader
 from train_methods import train_model, save_model, load_model
 import math
@@ -15,7 +17,7 @@ import math
 
 # Early stopping implementation
 class EarlyStopping:
-    def __init__(self, patience=5, delta=0.0001, exp_threshold = 10000):
+    def __init__(self, patience=5, delta=0.001, exp_threshold = 10000):
         self.patience = patience
         self.delta = delta
         self.best_loss = None
@@ -34,7 +36,7 @@ class EarlyStopping:
             self.early_stop = True
 
 
-        elif val_loss > self.best_loss - self.delta:
+        elif val_loss > self.best_loss * (1 - self.delta):
             self.counter += 1
             if self.counter >= self.patience:
                 self.early_stop = True
@@ -51,34 +53,35 @@ def objective(trial):
 
     # Hyperparameter search space
     learning_rate = trial.suggest_float("learning_rate", 1e-7, 1e-3, log=True)
-    batch_size = trial.suggest_categorical("batch_size",[8, 16, 32])
+    batch_size = trial.suggest_categorical("batch_size",[8, 16])
     dropout = trial.suggest_float("dropout", 0.1, 0.70)
-    dense_layers = trial.suggest_int("dense_layers", 2, 7)  # total number of dense layers in classifier
-    dense_initial_dim = trial.suggest_int("dense_initial_dim", 128, 2048, step=64)
+    weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-4, log=True)
+    # aug_prob = trial.suggest_float("aug_prob", 0.1, 0.6)
+    aug_prob = 0.25
+
+
+    dense_layers = trial.suggest_int("dense_layers", 2, 5)  # total number of dense layers in classifier
+    dense_initial_dim = trial.suggest_int("dense_initial_dim", 256, 1600, step=64)
 
     # Transformer fusion parameters
-    transformer_layers = trial.suggest_int("transformer_layers", 1, 4)
+    transformer_layers = 4 #trial.suggest_int("transformer_layers", 1, 4)
     transformer_nhead = trial.suggest_int("transformer_nhead", 8, 24)
-    head_dim = trial.suggest_int("head_dim", 32, 128, step=16)  # or choose an appropriate range
+    head_dim = trial.suggest_int("head_dim", 80, 172, step=16)  # or choose an appropriate range
     d_model = head_dim * transformer_nhead
 
     # Pretrained module freezing parameters
-    freeze_cnn_layers = trial.suggest_int("freeze_cnn_layers", 5, 15)
-    freeze_encoder_layers = trial.suggest_int("freeze_encoder_layers", 0, 8)
-
-    # Backbone selection: choose between 'vgg' and 'resnet'
-    # backbone = trial.suggest_categorical("backbone", ["vgg", "resnet"])
-
-    # Optimizer weight decay
-    weight_decay = trial.suggest_float("weight_decay", 1e-7, 1e-2, log=True)
+    freeze_cnn_layers = trial.suggest_int("freeze_cnn_layers", 5, 13)
+    freeze_encoder_layers = trial.suggest_int("freeze_encoder_layers", 6, 24)
 
     # Print the current trial parameters
     print(f"Current trial parameters: {trial.params}")
 
     # Loading the data
-    fraction_to_test = PARTIAL_TRAINING
-    train_loader = get_dataloader("Train", DATASET_FOLDER, batch_size=batch_size, num_workers=2, fraction=fraction_to_test)
-    val_loader = get_dataloader("Validation", DATASET_FOLDER, batch_size=batch_size, num_workers=2, fraction = fraction_to_test)
+    train_loader = get_dataloader("Train", DATASET_FOLDER, batch_size=batch_size, num_workers=2,
+                                  fraction=PARTIAL_TRAINING, data_aug=aug_prob)
+    val_loader = get_dataloader("Validation", DATASET_FOLDER, batch_size=batch_size, num_workers=2,
+                                fraction=PARTIAL_TESTING)
+
 
     # Build dense classifier hidden dimensions based on a linear decrease.
     # For instance, if dense_layers=3 and dense_initial_dim=512, you might have dimensions: [256, 128]
@@ -111,7 +114,8 @@ def objective(trial):
     # Loss, optimizer, and early stopping
     criterion = torch.nn.BCEWithLogitsLoss()
     optimizer = setup_optimizer(model, learning_rate, weight_decay)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.8)
+    scheduler = None
     early_stopping = EarlyStopping(patience=PATIENCE)
 
     print("Starting to train:")
@@ -122,6 +126,7 @@ def objective(trial):
         early_stopping,
         model,
         optimizer,
+        scheduler,
         train_loader,
         trial,
         val_loader
@@ -132,7 +137,6 @@ def objective(trial):
 
     return best_trial_loss, val_loss, f1
 
-
 def setup_optimizer(model, learning_rate, weight_decay):
     decay_params = []
     no_decay_params = []
@@ -142,25 +146,27 @@ def setup_optimizer(model, learning_rate, weight_decay):
                 no_decay_params.append(param)
             else:
                 decay_params.append(param)
+
+
     # Define optimizer with separate parameter groups
     optimizer = torch.optim.Adam([
         {'params': decay_params, 'weight_decay': weight_decay},  # Apply weight decay
         {'params': no_decay_params, 'weight_decay': 0.0}  # No weight decay for BatchNorm & biases
     ], lr=learning_rate)
 
-    return optimizer
 
+
+    return optimizer
 
 def evaluate_on_test(model, test_csv, batch_size=None):
     """
     Evaluate the model on the test set after tuning.
     """
 
-    # Create Test DataLoader
-    if type(model) == DeepFakeDetection:
-        test_loader = get_dataloader(test_csv, WAV2VEC_FOLDER, batch_size=batch_size, num_workers=2)
-    elif type(model) == DeepFakeDetector:
-        test_loader = get_dataloader("Validation", DATASET_FOLDER, batch_size=batch_size, num_workers=2)
+
+    if type(model) == DeepFakeDetector:
+        test_loader = get_dataloader("Validation", CUSTOM_DATASET_FOLDER, batch_size=batch_size, num_workers=2)
+    else: raise ValueError("Model not yet supported")
 
     # Testing Loop with DataLoader
     model.eval()
@@ -203,7 +209,6 @@ def evaluate_on_test(model, test_csv, batch_size=None):
     print(f"Test Loss = {test_loss:.4f}, Accuracy = {accuracy:.4f}, Recall = {recall:.4f}, F1 = {f1:.4f}")
     return accuracy, recall, f1
 
-
 def save_best_model(study, prefix="DeepFakeModel", extension="pth"):
 
     if study._is_multi_objective():
@@ -231,7 +236,6 @@ def save_best_model(study, prefix="DeepFakeModel", extension="pth"):
 
     print(f"Best model saved to {model_filename}")
     return model_filename
-
 
 def log_result(trial, filename="optuna_trials.csv"):
     """Logs all trial results into a CSV file for easy tracking."""
@@ -270,7 +274,6 @@ def log_result(trial, filename="optuna_trials.csv"):
 
         # Write the trial data
         writer.writerow(ordered_trial_dict)
-
 
 def save_all_trials_csv(study, filename_prefix="optuna_results"):
     """
@@ -334,7 +337,6 @@ def save_all_trials_csv(study, filename_prefix="optuna_results"):
 
     # print(f"All trial results have been saved to '{filename}'.")
 
-
 def save_best_model_callback(study, trial):
     global best_model_path, best_validation_loss
     this_trial_loss = trial.user_attrs["best_val_loss"]
@@ -346,6 +348,17 @@ def save_best_model_callback(study, trial):
         study.set_user_attr("best_model_path", this_trial_model_path)
 
         print(f"New best model (Trial {trial.number}) saved with val_loss = {best_validation_loss:.4f}")
+
+def set_global_seed(seed: int = SEED):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    # Ensure deterministic behavior on GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 # Run Optuna optimization
@@ -364,9 +377,13 @@ if __name__ == "__main__":
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG300M.db"
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG.db"
     # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG_spatial_info.db"
-    STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG_spatial_data_aug.db"
+    # STUDY_DB_PATH = "sqlite:///checkpoints/Wav2Vec_VGG_spatial_data_aug.db"
+    STUDY_DB_PATH = "sqlite:///checkpoints/AVDNET.db"
     if not LOAD_TRAINING:
         STUDY_DB_PATH = None
+
+    #set random seed
+    set_global_seed(SEED)
 
     # run the optuna study
     study = optuna.create_study(storage=STUDY_DB_PATH,
@@ -384,27 +401,3 @@ if __name__ == "__main__":
     #save the results
     save_all_trials_csv(study, filename_prefix="data/results/optuna_results")
     print("csv saved...")
-    path_to_best_model = save_best_model(study)
-
-    # Get the best hyperparameters
-    # Print best trials (Pareto front) along with their hyperparameters
-    print("\nBest Trials (Pareto front) with Hyperparameters:")
-    for trial in study.best_trials:
-        print(f"Trial {trial.number}:")
-        print(f"  Best Loss       = {trial.values[0]:.6f}")
-        print(f"  Last Epoch Loss = {trial.values[1]:.6f}")
-        print(f"  F1-score        = {trial.values[2]:.6f}")
-        print("  Hyperparameters:")
-        for key, value in trial.params.items():
-            print(f"    {key}: {value}")
-        print("-" * 50)  # Separator for better readability
-
-    # best_params = study.best_params
-    # print("Best hyperparameters:", best_params)
-
-    # load the best model with the best parameters
-    loaded_model = load_model(path_to_best_model)
-
-    # Evaluate on test data
-    evaluate_on_test(loaded_model, TEST_CSV)
-
