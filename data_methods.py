@@ -40,6 +40,8 @@ class Wav2VecDataset(Dataset):
 
         return wav2vec_tensor, x_features, label
 
+lfcc_transform = T.LFCC(
+            sample_rate=16000, n_lfcc=80, n_filter=128, log_lf=False)
 
 class ASVspoof5Dataset(Dataset):
     def __init__(self, data_dir, split, aug_prob=0, track = 1, fraction = 1):
@@ -64,13 +66,13 @@ class ASVspoof5Dataset(Dataset):
         # Read protocol file (TSV format in ASVspoof5)
         self.metadata = pd.read_csv(protocol_file, header=None, delim_whitespace=True)
 
+        count = [0, 0]
         # Handle different protocol file formats based on track
         if track == 1:
             # For track 1 files, we have columns:
             # SPEAKER_ID FLAC_FILE_NAME SPEAKER_GENDER CODEC CODEC_Q CODEC_SEED ATTACK_TAG ATTACK_LABEL KEY TMP
             # Map labels: bonafide -> 0, spoof -> 1
             self.metadata.iloc[:, 8] = self.metadata.iloc[:, 8].map({'bonafide': 0, 'spoof': 1})
-
             # Keep relevant columns
             self.metadata = self.metadata.iloc[:, [1, 7, 8]]  # Example index selection
         elif track == 2:
@@ -89,6 +91,11 @@ class ASVspoof5Dataset(Dataset):
 
         #filtering out the non generated attacks.
         self.metadata = self.metadata[~self.metadata.iloc[:, 1].isin(unwanted_attacks)]
+
+        for i in range(len(self.metadata)):
+            count[self.metadata.iloc[i, 2]] += 1
+
+        print(f"fake to real {count}, ratio: {count[1]/count[0]}")
 
         # Create audio paths based on subset
         if split == "Train":
@@ -162,34 +169,34 @@ class ASVspoof5Dataset(Dataset):
             waveform, _ = augment_audio_fixed(waveform, self.sample_rate)
 
         # Extract LFCC features from the waveform.
-        lfcc_input = self.extract_lfcc_torchaudio(waveform, sr)
+        lfcc_input = lfcc_transform(waveform, sr)
 
         return lfcc_input, waveform, label
 
-    def extract_lfcc_torchaudio(self, waveform, sample_rate=16000, n_lfcc=80, n_filter=128, log_lf=False):
-        """
-        Extract LFCC features from waveform using torchaudio.
-
-        Args:
-            waveform (torch.Tensor): Audio tensor of shape (1, samples)
-            sample_rate (int): Sample rate of audio (default: 16kHz)
-            n_lfcc (int): Number of LFCC coefficients (default: 40)
-            n_filter (int): Number of linear filters (default: 128)
-            log_lf (bool): Whether to apply log scale on LFCC (default: False)
-
-        Returns:
-            torch.Tensor: LFCC features of shape (1, n_lfcc, time_steps)
-        """
-        lfcc_transform = T.LFCC(
-            sample_rate=sample_rate,
-            n_lfcc=n_lfcc,
-            n_filter=n_filter,
-            log_lf=log_lf
-        )
-
-        lfcc_features = lfcc_transform(waveform)  # (1, n_lfcc, time_steps)
-
-        return lfcc_features
+    # def extract_lfcc_torchaudio(self, waveform, sample_rate=16000, n_lfcc=80, n_filter=128, log_lf=False):
+    #     """
+    #     Extract LFCC features from waveform using torchaudio.
+    #
+    #     Args:
+    #         waveform (torch.Tensor): Audio tensor of shape (1, samples)
+    #         sample_rate (int): Sample rate of audio (default: 16kHz)
+    #         n_lfcc (int): Number of LFCC coefficients (default: 40)
+    #         n_filter (int): Number of linear filters (default: 128)
+    #         log_lf (bool): Whether to apply log scale on LFCC (default: False)
+    #
+    #     Returns:
+    #         torch.Tensor: LFCC features of shape (1, n_lfcc, time_steps)
+    #     """
+    #     lfcc_transform = T.LFCC(
+    #         sample_rate=sample_rate,
+    #         n_lfcc=n_lfcc,
+    #         n_filter=n_filter,
+    #         log_lf=log_lf
+    #     )
+    #
+    #     lfcc_features = lfcc_transform(waveform)  # (1, n_lfcc, time_steps)
+    #
+    #     return lfcc_features
 
 
 class RawAudioDatasetLoader(Dataset):
@@ -570,7 +577,6 @@ def calculate_metrics_4(y_true, y_pred):
     :param y_pred: Predicted probabilities (numpy array).
     :return: Dictionary containing accuracy, recall, F1-score, and precision.
     """
-    print(y_true.shape, y_pred.shape)
     y_pred_labels = (y_pred > 0.5).astype(int)  # Convert probabilities to binary predictions
     acc = accuracy_score(y_true, y_pred_labels)
     recall = recall_score(y_true, y_pred_labels)
