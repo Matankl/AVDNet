@@ -1,6 +1,6 @@
 import importlib
+import os
 import time
-
 import matplotlib
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -75,7 +75,7 @@ def load_model(save_path, model_class = None):
     return model.to(device)
 
 
-def train_one_epoch(model, train_loader, optimizer, scheduler, criterion):
+def train_one_epoch(model, train_loader, optimizer, criterion):
     """
     Performs one epoch of training. Returns the average training loss
     and a flag indicating if early termination is needed due to
@@ -83,9 +83,9 @@ def train_one_epoch(model, train_loader, optimizer, scheduler, criterion):
     """
     model.train()
     train_loss = 0.0
-    count_train = 0
     exploding_batch_count = 0
     all_y_true, all_y_pred = [], []
+    W_NEG, W_POS = 8.70, 1.0 # according to the current unbalance in the dataset
 
     for lfcc_in, waveform_in, y_batch in train_loader:
         lfcc_in, waveform_in, y_batch = (
@@ -98,7 +98,13 @@ def train_one_epoch(model, train_loader, optimizer, scheduler, criterion):
         y_pred = model(lfcc_in, waveform_in).squeeze()
         y_batch = y_batch.view(-1)  # ensure the shapes match
         y_pred = y_pred.squeeze(-1)  # handle extra dimension if present
-        loss = criterion(y_pred, y_batch.float())
+        # sample-wise weight vector
+        weights = torch.where(y_batch == 0,
+                              torch.tensor(W_NEG, device=y_batch.device),
+                              torch.tensor(W_POS, device=y_batch.device))
+
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            y_pred, y_batch.float(), weight=weights, reduction="mean")
 
         # Check for numerical instability
         if torch.isnan(loss) or torch.isinf(loss):
@@ -118,25 +124,22 @@ def train_one_epoch(model, train_loader, optimizer, scheduler, criterion):
         optimizer.zero_grad(set_to_none=True)
 
         train_loss += loss.detach().item()
-        count_train += 1
-
-    if scheduler is not None:
-        scheduler.step()
 
     # Avoid division by zero in case all batches got skipped
-    avg_train_loss = train_loss / (count_train + 1e-10)
+    avg_train_loss = train_loss / len(train_loader)
     all_y_true.extend(y_batch.detach().cpu().numpy())
     all_y_pred.extend(y_pred.detach().squeeze().cpu().numpy())
     accuracy, recall, f1 = calculate_metrics(np.array(all_y_true), np.array(all_y_pred))
 
-    now = time.strftime("%d/%m %H:%M:%S", time.localtime())
-    print(
-        f"\n{now} - "
-        f"Train Loss = {avg_train_loss:.4f}, "
-        f"Train Accuracy = {accuracy:.4f}, "
-        f"Train Recall = {recall:.4f}, "
-        f"Train F1 = {f1:.4f}"
-    )
+    if DEBUGMODE:
+        now = time.strftime("%d/%m %H:%M:%S", time.localtime())
+        print(
+            f"\n{now} - "
+            f"Train Loss = {avg_train_loss:.4f}, "
+            f"Train Accuracy = {accuracy:.4f}, "
+            f"Train Recall = {recall:.4f}, "
+            f"Train F1 = {f1:.4f}"
+        )
     return avg_train_loss, False
 
 
@@ -169,15 +172,16 @@ def validate_model(model, val_loader, criterion):
     return avg_val_loss, accuracy, recall, f1
 
 
-def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, scheduler, train_loader, trial, val_loader):
+def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, scheduler, train_loader, trial, val_loader, stop_signal_path=None):
     """
     Main training method that loops over EPOCHS, calling the
     separate train and validation methods.
     """
+    best_f1 = -1
     for epoch in tqdm(range(EPOCHS)):
         # --- TRAINING PHASE ---
         train_loss, early_termination = train_one_epoch(
-            model, train_loader, optimizer, scheduler, criterion
+            model, train_loader, optimizer, criterion
         )
 
         # If we detect NaN/Inf too often, stop and return worst values
@@ -186,6 +190,9 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, sc
 
         # --- VALIDATION PHASE ---
         val_loss, accuracy, recall, f1 = validate_model(model, val_loader, criterion)
+
+        if scheduler is not None:
+            scheduler.step()
 
         now = time.strftime("%d/%m %H:%M:%S", time.localtime())
         print(
@@ -207,10 +214,24 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, sc
             print("* Best model yet.")
             save_model(model, temp_model_path)
 
+        if f1 >= best_f1:
+            best_f1 = f1
+
+        # --- EXTERNAL STOP CHECK ---
+        if stop_signal_path is not None and os.path.exists(stop_signal_path):
+            try:
+                with open(stop_signal_path, "r") as f:
+                    content = f.read().strip().lower()
+                    if "stop" in content:
+                        print("External stop signal detected. Terminating training.")
+                        return best_trial_loss, val_loss, f1
+            except Exception as e:
+                print(f"Failed to read stop file: {e}")
+
         # Early stopping check
         early_stopping(val_loss)
         if early_stopping.early_stop:
-            return best_trial_loss, val_loss, f1
+            break
 
-    return best_trial_loss, val_loss, f1
+    return best_trial_loss, val_loss, best_f1
 
