@@ -10,6 +10,7 @@ from constants import *
 from train_methods import load_model
 
 def evaluate_on_test(model_path):
+    print(f"Results from {model_path}:")
     best_model_path = model_path
 
     # load the best model with the best parameters
@@ -17,7 +18,7 @@ def evaluate_on_test(model_path):
     # print(model)
     # model = torch.load(best_model_path, weights_only=False)
 
-    val_loader = get_dataloader("Test", DATASET_FOLDER, batch_size=8, num_workers=1)
+    val_loader = get_dataloader("Test", DATASET_FOLDER, batch_size=8, num_workers=6, fraction=1)
     criterion = torch.nn.BCEWithLogitsLoss()
 
 
@@ -63,7 +64,15 @@ def evaluate_on_test(model_path):
 #     break
 
 
-model_path = rf"/home/hp4ran/PycharmProjects/The-model/checkpoints/15-05 05:42 tmp_model_trial_5.pth"
+model_path = rf"/home/hp4ran/PycharmProjects/The-model/checkpoints/14-06 08:45 tmp_model_trial_8.pth"
 if os.path.exists(model_path):
-    print(f"Results from {model_path}:")
+
     evaluate_on_test(model_path)
+else:
+    print("Model not found")
+
+# model_path = rf"/home/hp4ran/PycharmProjects/The-model/checkpoints/06-06 00:44 tmp_model_trial_4.pth"
+# if os.path.exists(model_path):
+#     evaluate_on_test(model_path)
+# else:
+#     print("Model not found")

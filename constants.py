@@ -22,12 +22,13 @@ elif DATASET == "CUSTOM":
 SEED = 42
 LOAD_TRAINING = True
 DATA_AUGMENTATION = True # to use the previous data augmentation script, set to False
-EPOCHS = 100
-TRIALS = 20
-PATIENCE = 4
-PARTIAL_TRAINING = 1# between 0-1 how much of the data to use
-PARTIAL_TESTING = 1
+EPOCHS = 30
+TRIALS = 10
+PATIENCE = 5
+PARTIAL_TRAINING = 0.0001 # between 0-1 how much of the data to use
+PARTIAL_TESTING = PARTIAL_TRAINING
 DEBUGMODE = False
+DEFAULT_AUG_PROB = 0.35
 
 
 # logs path
