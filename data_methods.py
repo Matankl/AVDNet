@@ -169,7 +169,7 @@ class ASVspoof5Dataset(Dataset):
             waveform, _ = augment_audio_fixed(waveform, self.sample_rate)
 
         # Extract LFCC features from the waveform.
-        lfcc_input = lfcc_transform(waveform, sr)
+        lfcc_input = lfcc_transform(waveform)
 
         return lfcc_input, waveform, label
 
@@ -274,7 +274,7 @@ class RawAudioDatasetLoader(Dataset):
             waveform = waveform[:, :self.expected_length]  # Truncate
 
         # Extract LFCC features from the waveform.
-        lfcc_input = extract_lfcc_torchaudio(waveform, sr)
+        lfcc_input = lfcc_transform(waveform)
         # For fine-tuning Wav2Vec, use the raw waveform.
         wav2vec_input = waveform
 
@@ -450,7 +450,7 @@ class RecursiveFakeAudioDataset(Dataset):
             waveform = waveform[:, :self.expected_length]  # Truncate
 
         # Extract LFCC features from the waveform
-        lfcc_input = extract_lfcc_torchaudio(waveform, sr)
+        lfcc_input = lfcc_transform(waveform)
         # For fine-tuning Wav2Vec, use the raw waveform
         wav2vec_input = waveform
 

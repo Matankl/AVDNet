@@ -49,7 +49,7 @@ def load_model(save_path, model_class = None):
     checkpoint = torch.load(save_path, map_location=device, weights_only=False)
 
     # Retrieve hyperparameters
-    hyperparameters = checkpoint.get('hyperparameters', {})
+    # hyperparameters = checkpoint.get('hyperparameters', {})
 
 
     # Retrieve the saved class name
@@ -69,8 +69,9 @@ def load_model(save_path, model_class = None):
                                  f"👉 Alternatively, pass `model_class` explicitly to `load_model()`.")
 
     # Load the saved weights into the new model
-    model = model_class(**hyperparameters)  # Instantiate the model
-    model.load_state_dict(checkpoint['model_state_dict'])
+    # model = model_class(**hyperparameters)  # Instantiate the model
+    # model.load_state_dict(checkpoint['model_state_dict'])
+    model = model_class()
 
     return model.to(device)
 
