@@ -56,7 +56,7 @@ class Wav2Vec2DeepfakeClassifier(nn.Module):
 
         self.config = {}
 
-    def forward(self, input_values, attention_mask=None):
+    def forward(self, lffcc, input_values, attention_mask=None):
         input_values.squeeze_(dim=1)
         out = self.wav2vec2(input_values, attention_mask=attention_mask)
         hidden_states = out.last_hidden_state  # shape (B, T, 1024)

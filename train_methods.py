@@ -210,7 +210,7 @@ def train_model(best_trial_loss, criterion, early_stopping, model, optimizer, sc
         if val_loss < best_trial_loss:
             best_trial_loss = val_loss
             timestamp = time.strftime("%d-%m %H:%M", time.localtime())
-            temp_model_path = f"checkpoints/{timestamp} tmp_model_trial_{trial.number}.pth"
+            temp_model_path = f"wav2vec_branch_checkpoints/{timestamp} tmp_model_trial_{trial.number}.pth"
             trial.set_user_attr("best_model_path", temp_model_path)
             print("* Best model yet.")
             save_model(model, temp_model_path)
